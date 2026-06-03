@@ -1,0 +1,221 @@
+﻿<Window x:Class="Open.DataGrid.Demo.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:edg="clr-namespace:Open.DataGrid.Controls;assembly=Open.DataGrid"
+        xmlns:col="clr-namespace:Open.DataGrid.Columns;assembly=Open.DataGrid"
+        xmlns:nav="clr-namespace:Open.DataGrid.Models;assembly=Open.DataGrid"
+        DataContext="{Binding Main, Source={StaticResource Locator}}"
+        Title="OpenDataGrid — Performance Demo (1M × 40 columns)"
+        Height="750" Width="1400">
+
+    <DockPanel>
+
+        <!-- Toolbar -->
+        <ToolBar DockPanel.Dock="Top">
+            <Button Content="Load 1M"   Command="{Binding LoadDataCommand}" Padding="8,2"/>
+            <Button Content="Load 500k" Command="{Binding Load500kCommand}" Padding="8,2" Margin="4,0,0,0"/>
+            <Button Content="Load 100k" Command="{Binding Load100kCommand}" Padding="8,2" Margin="4,0,0,0"/>
+            <Separator/>
+            <Button Content="+1000" Command="{Binding Add1000Command}" Padding="8,2" Margin="4,0,0,0"
+                    ToolTip="Dodaj 1000 losowych wierszy na końcu listy"/>
+            <Button Content="-1000" Command="{Binding Remove1000Command}" Padding="8,2" Margin="4,0,0,0"
+                    ToolTip="Usuń 1000 losowych wierszy z listy"/>
+            <Separator/>
+            <Button Content="Random position" Command="{Binding SelectRandomRowCommand}" Padding="8,2" Margin="6,0,0,0"/>
+            <Button Content="Random column" Click="RandomColumn_Click" Padding="8,2" Margin="6,0,0,0"
+                    ToolTip="Losuje kolumnę i ustawia na niej focus (tryb Cell)"/>
+            <Separator/>
+            <ToggleButton Content="Read Only" IsChecked="{Binding IsGridReadOnly, Mode=TwoWay}" Padding="8,2"/>
+            <Separator/>
+            <ToggleButton Content="Restore column on focus"
+                          IsChecked="{Binding RestoreDefaultColumnOnFocus, ElementName=TheGrid, Mode=TwoWay}"
+                          Padding="8,2"
+                          ToolTip="Przy każdym focusie na gridzie przywraca kolumnę do SelectedColumn (Price)"/>
+            <Separator/>
+            <TextBlock Text="Navigation:" VerticalAlignment="Center" Margin="4,0"/>
+            <RadioButton x:Name="rbRow" Content="Row" GroupName="NavMode" 
+                         Checked="RbRow_Checked" VerticalAlignment="Center" Margin="4,0"/>
+            <RadioButton x:Name="rbCell" Content="Cell" GroupName="NavMode" IsChecked="True"
+                         Checked="RbCell_Checked" VerticalAlignment="Center" Margin="4,0"/>
+            <Separator/>
+            <TextBlock Text="Grid lines:" VerticalAlignment="Center" Margin="4,0"/>
+            <ComboBox SelectedValue="{Binding GridLinesVisibility, ElementName=TheGrid, Mode=TwoWay}"
+                      SelectedValuePath="Tag"
+                      Width="105"
+                      Margin="4,0,0,0"
+                      VerticalAlignment="Center">
+                <ComboBoxItem Content="All" Tag="{x:Static nav:GridLinesVisibility.All}"/>
+                <ComboBoxItem Content="Horizontal" Tag="{x:Static nav:GridLinesVisibility.Horizontal}"/>
+                <ComboBoxItem Content="Vertical" Tag="{x:Static nav:GridLinesVisibility.Vertical}"/>
+                <ComboBoxItem Content="None" Tag="{x:Static nav:GridLinesVisibility.None}"/>
+            </ComboBox>
+        </ToolBar>
+
+        <!-- Status bar -->
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem>
+                <TextBlock Text="{Binding StatusText}"/>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <TextBlock>
+                    <Run Text="Checked: "/>
+                    <Run Text="{Binding CheckedRows.Count, Mode=OneWay, FallbackValue='0'}"/>
+                </TextBlock>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <TextBlock>
+                    <Run Text="Selected: "/>
+                    <Run Text="{Binding SelectedItem.Name, FallbackValue='(none)'}"/>
+                </TextBlock>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <TextBlock>
+                    <Run Text="Column: "/>
+                    <Run Text="{Binding FocusedColumnHeader, ElementName=TheGrid, FallbackValue='—'}"/>
+                    <Run Text=" ("/>
+                    <Run Text="{Binding FocusedColumnIndex, ElementName=TheGrid}"/>
+                    <Run Text=")"/>
+                </TextBlock>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <TextBlock>
+                    <Run Text="SelectedColumn: "/>
+                    <Run x:Name="SelectedColumnRun" Text="—"/>
+                </TextBlock>
+            </StatusBarItem>
+        </StatusBar>
+
+        <!-- Filter bar -->
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="4,2" >
+            <TextBlock Text="Filtr (Name/Category):" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <edg:OpenDataGridTextFilter Grid="{Binding ElementName=TheGrid}"
+                                        FilterFields="Name,Category" FocusGridOnConfirm="True"
+                                        Width="220" Margin="0,0,12,0"/>
+            <TextBlock Text="Filtr (Description):" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <edg:OpenDataGridTextFilter Grid="{Binding ElementName=TheGrid}"
+                                        FilterFields="Description" FocusGridOnConfirm="True"
+                                        Width="220" Margin="0,0,12,0"/>
+            <TextBlock Text="Category:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <edg:OpenDataGridComboFilter Grid="{Binding ElementName=TheGrid}"
+                                         FilterField="Category" 
+                                         Width="160" Margin="0,0,12,0"/>
+
+            <TextBlock Text="HiddenColumns:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBox Width="260"
+                     VerticalAlignment="Center"
+                     ToolTip="Np.: Name,Quantity;Category (BindingPath)"
+                     Text="{Binding HiddenColumns, ElementName=TheGrid, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+        </StackPanel>
+
+        <!-- Main grid -->
+        <edg:OpenDataGrid x:Name="TheGrid"
+            DataSource="{Binding Rows}"
+            SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
+            CheckedItems="{Binding CheckedRows, Mode=OneWay}"
+            IsReadOnly="{Binding IsGridReadOnly}"
+            RowHeight="26"
+            AllowColumnReorder="True"
+            HeaderHeight="32"
+            AlternateRowShift="0.05"
+            RowBackgroundSelector="{Binding RowBackgroundSelector}"
+            RowBackgroundBindingPath="RowColor" SelectedColumn="Price"
+            RowReadOnlyBindingPath="IsRowReadOnly"
+            ToggleCheckedKey="Space"
+            Margin="0">
+
+            <edg:OpenDataGrid.Columns>
+
+                <!-- String / Label columns -->
+                <col:OpenDataGridIntegerColumn Header="Seq#"         BindingPath="SequenceNo"   Width="70"/>
+                <col:OpenDataGridLabelColumn Header="Name"         BindingPath="Name"         Width="130" Background="LightYellow" FilteringEnabled="True"/>
+                <col:OpenDataGridLabelColumn Header="Opis"  BindingPath="Description"  Width="200"/>
+                <col:OpenDataGridLabelColumn Header="Kategoria"     BindingPath="Category"     Width="100" Background="LightYellow" FilteringEnabled="True"/>
+                <col:OpenDataGridLabelColumn Header="Status"       BindingPath="Status"       Width="90"/>
+                <col:OpenDataGridLabelColumn Header="Code"         BindingPath="Code"         Width="90"/>
+                <col:OpenDataGridLabelColumn Header="Reference"    BindingPath="Reference"    Width="90"/>
+                <col:OpenDataGridLabelColumn Header="Notes"        BindingPath="Notes"        Width="120"/>
+                <col:OpenDataGridLabelColumn Header="Tag1"         BindingPath="Tag1"         Width="60"/>
+                <col:OpenDataGridLabelColumn Header="Tag2"         BindingPath="Tag2"         Width="60"/>
+                <col:OpenDataGridIntegerColumn Header="Towar Qty"  BindingPath="Towar.Qty"    Width="85"  Minimum="0" Maximum="999" Background="LightCyan"/>
+                <col:OpenDataGridLabelColumn Header="Towar Symbol" BindingPath="Towar.Symbol" Width="120" IsReadOnly="True" Background="Lavender"/>
+
+                <!-- Decimal columns -->
+                <col:OpenDataGridDecimalColumn Header="Price"       BindingPath="Price"       Width="90"  DecimalPlaces="2" Minimum="0" Maximum="9999.99" Background="LightYellow" FilteringEnabled="True"/>
+                <col:OpenDataGridDecimalColumn Header="Wartość"     BindingPath="Wartosc"     Width="110" DecimalPlaces="2" IsReadOnly="True"/>
+                <col:OpenDataGridDecimalColumn Header="Amount"      BindingPath="Amount"      Width="100" DecimalPlaces="2" Minimum="0"/>
+                <col:OpenDataGridDecimalColumn Header="Tax"         BindingPath="Tax"         Width="80"  DecimalPlaces="2" Minimum="0"/>
+                <col:OpenDataGridDecimalColumn Header="Discount"    BindingPath="Discount"    Width="80"  DecimalPlaces="2" Minimum="0" Maximum="100"/>
+                <col:OpenDataGridDecimalColumn Header="Net Amt"     BindingPath="NetAmount"   Width="100" DecimalPlaces="2"/>
+                <col:OpenDataGridDecimalColumn Header="Gross Amt"   BindingPath="GrossAmount" Width="100" DecimalPlaces="2"/>
+                <col:OpenDataGridDecimalColumn Header="Rate"        BindingPath="Rate"        Width="80"  DecimalPlaces="4"/>
+                <col:OpenDataGridDecimalColumn Header="Balance"     BindingPath="Balance"     Width="100" DecimalPlaces="2"/>
+
+                <!-- Integer columns -->
+                <col:OpenDataGridIntegerColumn Header="Qty"         BindingPath="Quantity"    Width="70"  Minimum="0" Maximum="9999" FilteringEnabled="True"/>
+                <col:OpenDataGridIntegerColumn Header="Priority"    BindingPath="Priority"    Width="70"  Minimum="1" Maximum="10"/>
+                <col:OpenDataGridIntegerColumn Header="Rating"      BindingPath="Rating"      Width="65"  Minimum="1" Maximum="5"/>
+                <col:OpenDataGridIntegerColumn Header="Stock"       BindingPath="StockLevel"  Width="70"  Minimum="0"/>
+                <col:OpenDataGridIntegerColumn Header="Orders"      BindingPath="OrderCount"  Width="70"  Minimum="0"/>
+                <col:OpenDataGridIntegerColumn Header="Returns"     BindingPath="ReturnCount" Width="70"  Minimum="0"/>
+                <col:OpenDataGridIntegerColumn Header="Days Since"  BindingPath="DaysSince"   Width="80"  Minimum="0"/>
+
+                <!-- DateTime columns — demonstrating DisplayMode presets and DateFormat override -->
+                <col:OpenDataGridDateTimeColumn Header="Created"    BindingPath="CreatedDate"  Width="95"  DisplayMode="Date"     FilteringEnabled="True"/>
+                <col:OpenDataGridDateTimeColumn Header="Modified"   BindingPath="ModifiedDate" Width="150" DisplayMode="DateTime"/>
+                <col:OpenDataGridDateTimeColumn Header="Due Date"   BindingPath="DueDate"      Width="95"  DisplayMode="Date"/>
+                <col:OpenDataGridDateTimeColumn Header="Ship Date"  BindingPath="ShipDate"     Width="95"  DisplayMode="Date"/>
+                <col:OpenDataGridDateTimeColumn Header="Invoice"    BindingPath="InvoiceDate"  Width="95"  DateFormat="dd.MM.yyyy"/>
+                <col:OpenDataGridDateTimeColumn Header="Expiry"     BindingPath="ExpiryDate"   Width="95"  DisplayMode="Date"/>
+
+                <!-- TimeSpan columns -->
+                <col:OpenDataGridTimeSpanColumn Header="Work Dur"   BindingPath="WorkDuration"   Width="80"/>
+                <col:OpenDataGridTimeSpanColumn Header="Proc Time"  BindingPath="ProcessingTime" Width="80"  TimeFormat="hh\:mm\:ss"/>
+
+                <!-- Combo columns — DataContext inherited from OpenDataGrid (MainViewModel) -->
+                <col:OpenDataGridComboColumn Header="Country"      BindingPath="CountryId"    Width="120"
+                    ItemsSource="{Binding Countries}"
+                    DisplayMemberPath="Label" ValueMemberPath="Id"
+                    FilteringEnabled="True"/>
+                <col:OpenDataGridComboColumn Header="Department"   BindingPath="DepartmentId" Width="110"
+                    ItemsSource="{Binding Departments}"
+                    DisplayMemberPath="Label" ValueMemberPath="Id"/>
+                <col:OpenDataGridComboColumn Header="Type"         BindingPath="TypeId"       Width="90"
+                    ItemsSource="{Binding Types}"
+                    DisplayMemberPath="Label" ValueMemberPath="Id"/>
+                <col:OpenDataGridComboColumn Header="Currency"     BindingPath="CurrencyId"   Width="90"
+                    ItemsSource="{Binding Currencies}"
+                    DisplayMemberPath="Label" ValueMemberPath="Id"/>
+
+                <!-- Custom column with DataTemplate -->
+                <col:OpenDataGridCustomColumn Header="Custom" BindingPath="CustomData" Width="90">
+                    <col:OpenDataGridCustomColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" VerticalAlignment="Center"
+                                       HorizontalAlignment="Center"
+                                       Margin="2,0"/>
+                        </DataTemplate>
+                    </col:OpenDataGridCustomColumn.CellTemplate>
+                </col:OpenDataGridCustomColumn>
+
+                <!-- Boolean columns -->
+                <col:OpenDataGridBooleanColumn Header="Active?" BindingPath="IsActive" Width="70" FilteringEnabled="True"/>
+                <col:OpenDataGridBooleanColumn Header="Approved?" BindingPath="IsApproved" Width="85" IsThreeState="True"/>
+
+                <!-- ReadOnly indicator column -->
+                <col:OpenDataGridLabelColumn Header="RO?" BindingPath="IsRowReadOnly" Width="50" IsReadOnly="True"/>
+
+                <!-- CheckColumn — unbound mode: state lives in CheckedItems -->
+                <col:OpenDataGridCheckColumn Header="Check" Width="55"/>
+
+                <!-- CheckColumn — bound mode: syncs with IsActive bool field -->
+                <col:OpenDataGridCheckColumn Header="Active✓" BindingPath="IsActive" Width="60"/>
+
+            </edg:OpenDataGrid.Columns>
+        </edg:OpenDataGrid>
+
+    </DockPanel>
+</Window>

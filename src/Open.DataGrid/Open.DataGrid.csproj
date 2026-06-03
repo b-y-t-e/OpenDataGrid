@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net462;net48;net6.0-windows;net8.0-windows;net10.0-windows</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>Open.DataGrid</AssemblyName>
+    <RootNamespace>Open.DataGrid</RootNamespace>
+
+    <PackageId>Open.DataGrid</PackageId>
+    <Version>1.2.13</Version>
+    <Title>Open.DataGrid</Title>
+    <Authors>OpenDataGrid Contributors</Authors>
+    <Company></Company>
+    <Description>High-performance WPF DataGrid with canvas-based ring-buffer virtualization. Supports 1M+ rows without built-in VirtualizingPanel. Features filtering, sorting, editing, and column customization.</Description>
+    <PackageTags>Open.DataGrid WPF DataGrid virtualization</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Fasterflect.Netstandard" Version="1.0.9" />
+  </ItemGroup>
+  <!-- Themes\Generic.xaml gets Page build action automatically via UseWPF -->
+</Project>

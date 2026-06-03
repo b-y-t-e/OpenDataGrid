@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net462;net48;net6.0-windows;net8.0-windows;net10.0-windows</TargetFrameworks>
+    <RootNamespace>Open.DataGrid.Tests</RootNamespace>
+    <AssemblyName>Open.DataGrid.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ValueTuple is not included in net462 BCL; needed for C# tuple syntax in test helpers -->
+    <PackageReference Include="System.ValueTuple" Version="4.5.0" Condition="'$(TargetFramework)' == 'net462'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Open.DataGrid\Open.DataGrid.csproj" />
+  </ItemGroup>
+
+</Project>

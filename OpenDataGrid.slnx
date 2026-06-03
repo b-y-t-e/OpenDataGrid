@@ -1,0 +1,7 @@
+﻿<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Open.DataGrid.Demo/Open.DataGrid.Demo.csproj" />
+    <Project Path="src/Open.DataGrid/Open.DataGrid.csproj" />
+    <Project Path="src/Open.DataGrid.Tests/Open.DataGrid.Tests.csproj" />
+  </Folder>
+</Solution>

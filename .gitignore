@@ -1,0 +1,43 @@
+# Build output
+bin/
+obj/
+**/build_out/
+
+# Visual Studio
+.vs/
+*_wpftmp.csproj
+*.user
+*.suo
+*.userprefs
+*.userosscache
+*.sln.docstates
+
+# ReSharper / Rider
+_ReSharper*/
+*.DotSettings.user
+.idea/
+
+# NuGet
+*.nupkg
+packages/
+.nuget/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Claude Code local state
+.claude/
+
+# NuGet publish secrets
+Deploy/.env
+.env
+
+# artifacts (packed .nupkg files)
+artifacts/
+
+# Legacy build output (old Else.DataGrid build artifacts)
+msbuild/
+
+# Cate IDE local workspace (contains absolute local paths)
+.cate/

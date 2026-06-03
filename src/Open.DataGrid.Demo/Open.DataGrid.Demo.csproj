@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net462</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>Open.DataGrid.Demo</AssemblyName>
+    <RootNamespace>Open.DataGrid.Demo</RootNamespace>
+    <StartupObject>Open.DataGrid.Demo.App</StartupObject>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Open.DataGrid\Open.DataGrid.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MvvmLightLibs" Version="5.4.1.1" />
+  </ItemGroup>
+</Project>
