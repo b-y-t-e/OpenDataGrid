@@ -10,6 +10,12 @@ namespace Open.DataGrid.Rendering
     internal static class BrushShift
     {
         /// <summary>
+        /// Luminance threshold (0–255 scale) used to decide whether a background is "dark" or "light"
+        /// when computing auto-contrast foreground colors. Shared with <see cref="CellForegroundResolver"/>.
+        /// </summary>
+        internal const double ForegroundLuminanceThreshold = 120.0;
+
+        /// <summary>
         /// Returns a new <see cref="SolidColorBrush"/> with each channel shifted by <paramref name="shift"/> (0.0–1.0).
         /// Light base colors are darkened; dark base colors are lightened. Result is frozen.
         /// Returns <paramref name="source"/> unchanged when it is not a <see cref="SolidColorBrush"/>.
@@ -52,7 +58,7 @@ namespace Open.DataGrid.Rendering
         {
             var color = (background as SolidColorBrush)?.Color ?? Colors.White;
             double luminance = 0.299 * color.R + 0.587 * color.G + 0.114 * color.B;
-            Color adjusted = luminance < 120
+            Color adjusted = luminance < ForegroundLuminanceThreshold
                 ? Color.FromRgb(Lighten60(color.R), Lighten60(color.G), Lighten60(color.B))
                 : Color.FromRgb(Darken60(color.R),  Darken60(color.G),  Darken60(color.B));
             var result = new SolidColorBrush(adjusted);
