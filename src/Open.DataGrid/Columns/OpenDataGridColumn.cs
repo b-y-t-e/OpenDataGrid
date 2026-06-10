@@ -279,10 +279,18 @@ namespace Open.DataGrid.Columns
             return _cachedAlternateBg;
         }
 
+        /// <summary>
+        /// Invoked by the parent grid whenever this column's <see cref="Background"/> changes
+        /// so visible cells can be repainted immediately. Set by the grid in
+        /// <see cref="Controls.OpenDataGrid.BuildPropertyAccessors"/>; cleared when unset.
+        /// </summary>
+        internal Action BackgroundInvalidated;
+
         private static void OnBackgroundChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             var col = (OpenDataGridColumn)d;
-            col._cachedBase = null; // invalidate alternate cache
+            col._cachedBase = null;           // invalidate alternate cache
+            col.BackgroundInvalidated?.Invoke();
         }
 
         #endregion

@@ -145,6 +145,22 @@ namespace Open.DataGrid.Controls
                 _cells[i].CellBorder.BorderBrush = brush;
         }
 
+        /// <summary>
+        /// Re-reads <c>RowBackground</c> / <c>HeaderBackground</c> from the grid and applies
+        /// the updated colours to all existing filter cells. Called when the theme changes.
+        /// </summary>
+        public void UpdateRowBackground()
+        {
+            if (_cells.Count == 0) return;
+            var columns = _grid._headerPresenter.GetVisibleColumnList();
+            for (int i = 0; i < _cells.Count && i < columns.Count; i++)
+            {
+                _cells[i].CellBorder.Background = columns[i].FilteringEnabled
+                    ? (_grid.RowBackground ?? DefaultFilterableBackground)
+                    : (_grid.HeaderBackground ?? DefaultInertBackground);
+            }
+        }
+
         private void DetachAllControllers()
         {
             foreach (var cell in _cells)

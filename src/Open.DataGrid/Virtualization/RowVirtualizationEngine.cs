@@ -298,6 +298,38 @@ namespace Open.DataGrid.Virtualization
         }
 
         /// <summary>
+        /// Forces every row in the pool to repaint the cell at <paramref name="colIndex"/> by
+        /// re-reading the column's Background DP. Called when
+        /// <see cref="Open.DataGrid.Columns.OpenDataGridColumn.Background"/> changes while rows are live.
+        /// </summary>
+        public void RefreshColumnBackground(int colIndex)
+        {
+            if (_pool == null) return;
+            for (int i = 0; i < _poolSize; i++)
+                _pool.GetRow(i).RefreshCellBackground(colIndex);
+        }
+
+        /// <summary>
+        /// Propagates a theme brush change to every row in the pool.
+        /// Rows re-resolve their background colours and refresh cell foregrounds immediately.
+        /// Called when the grid's <c>Theme</c> property changes.
+        /// </summary>
+        public void UpdateRowBrushes(
+            Brush selectionBrush,
+            Brush defaultRowBackground,
+            Func<int, object, Brush> colorResolver,
+            Brush gridForeground,
+            Brush selectionForeground,
+            double alternateRowShift)
+        {
+            if (_pool == null) return;
+            for (int i = 0; i < _poolSize; i++)
+                _pool.GetRow(i).UpdateRowBrushes(
+                    selectionBrush, defaultRowBackground, colorResolver,
+                    gridForeground, selectionForeground, alternateRowShift);
+        }
+
+        /// <summary>
         /// Main scroll handler. Updates visible rows based on new first visible data index.
         /// Only rebinds rows that actually changed (incremental delta updates).
         /// </summary>

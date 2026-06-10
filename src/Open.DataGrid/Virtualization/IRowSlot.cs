@@ -64,6 +64,26 @@ namespace Open.DataGrid.Virtualization
         /// <summary>Propagates new checked-row style brushes/font to the row and all its cells.</summary>
         void UpdateCheckedRowStyle(Brush foreground, Brush background, FontWeight? fontWeight);
 
+        /// <summary>
+        /// Forces the cell at <paramref name="colIndex"/> to re-read its column's Background and
+        /// repaint. Called when <see cref="Open.DataGrid.Columns.OpenDataGridColumn.Background"/>
+        /// changes while the row is already visible in the pool.
+        /// </summary>
+        void RefreshCellBackground(int colIndex);
+
+        /// <summary>
+        /// Propagates a theme brush change to the row: updates selection brush, default row background,
+        /// color resolver and foreground, then re-applies background to the row and cells.
+        /// Called by <see cref="Open.DataGrid.Virtualization.RowVirtualizationEngine.UpdateRowBrushes"/>.
+        /// </summary>
+        void UpdateRowBrushes(
+            Brush selectionBrush,
+            Brush defaultRowBackground,
+            Func<int, object, Brush> colorResolver,
+            Brush gridForeground,
+            Brush selectionForeground,
+            double alternateRowShift);
+
         /// <summary>Sets the pen used to draw grid lines. Pass <c>null</c> to hide grid lines.</summary>
         void SetGridLinePen(Pen pen);
 

@@ -98,6 +98,16 @@ namespace Open.DataGrid.Tests.Helpers
             LastCheckedRowFontWeight = fontWeight;
         }
 
+        public void UpdateRowBrushes(
+            Brush selectionBrush,
+            Brush defaultRowBackground,
+            Func<int, object, Brush> colorResolver,
+            Brush gridForeground,
+            Brush selectionForeground,
+            double alternateRowShift) { }
+
+        public void RefreshCellBackground(int colIndex) { }
+
         public void UpdateCellValue(int colIndex, object value)
         {
             if (colIndex < 0 || colIndex >= _columnCount) return;

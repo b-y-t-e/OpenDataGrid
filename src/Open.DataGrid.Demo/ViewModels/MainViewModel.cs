@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using Open.DataGrid.Demo.Models;
+using Open.DataGrid.Models;
+using Open.DataGrid.Rendering;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
 
@@ -16,6 +18,7 @@ namespace Open.DataGrid.Demo.ViewModels
         private bool _isGridReadOnly;
         private string _statusText = "Ready";
         private bool _isLoading;
+        private GridTheme _currentTheme = GridTheme.System;
         private readonly Random _random = new Random();
         private int _nextRowIndex;
 
@@ -52,6 +55,41 @@ namespace Open.DataGrid.Demo.ViewModels
             get => _isLoading;
             set => Set(ref _isLoading, value);
         }
+
+        /// <summary>Active grid theme (Light / Dark / System).</summary>
+        public GridTheme CurrentTheme
+        {
+            get => _currentTheme;
+            set
+            {
+                Set(ref _currentTheme, value);
+                // Notify all theme-dependent brush properties so column backgrounds update.
+                RaisePropertyChanged(nameof(HighlightColBackground));
+                RaisePropertyChanged(nameof(SecondaryColBackground));
+                RaisePropertyChanged(nameof(TertiaryColBackground));
+            }
+        }
+
+        /// <summary>Returns <c>true</c> when the effective rendered theme is Dark (used for per-column colour decisions).</summary>
+        private bool IsEffectivelyDark
+            => CurrentTheme == GridTheme.Dark ||
+               (CurrentTheme == GridTheme.System && SystemTheme.IsDark());
+
+        // Frozen dark-mode column backgrounds — allocated once, shared across all accesses.
+        private static readonly Brush _highlightDark  = FreezeBrush(Color.FromRgb(0x28, 0x27, 0x1E));
+        private static readonly Brush _secondaryDark  = FreezeBrush(Color.FromRgb(0x1E, 0x28, 0x28));
+        private static readonly Brush _tertiaryDark   = FreezeBrush(Color.FromRgb(0x24, 0x22, 0x2E));
+
+        private static Brush FreezeBrush(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
+
+        /// <summary>Column background for "primary highlight" columns (e.g. Name, Price). Light: LightYellow, Dark: subtle dark-yellow tint.</summary>
+        public Brush HighlightColBackground => IsEffectivelyDark ? _highlightDark  : Brushes.LightYellow;
+
+        /// <summary>Column background for "secondary" columns (e.g. Towar Qty). Light: LightCyan, Dark: subtle dark-cyan tint.</summary>
+        public Brush SecondaryColBackground => IsEffectivelyDark ? _secondaryDark  : Brushes.LightCyan;
+
+        /// <summary>Column background for "tertiary" columns (e.g. Towar Symbol). Light: Lavender, Dark: subtle dark-lavender tint.</summary>
+        public Brush TertiaryColBackground  => IsEffectivelyDark ? _tertiaryDark   : Brushes.Lavender;
 
         /// <summary>Collection of checked rows exposed to the grid via CheckedItems DP.</summary>
         public System.Collections.ObjectModel.ObservableCollection<SampleRow> CheckedRows { get; }

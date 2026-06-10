@@ -70,6 +70,21 @@ namespace Open.DataGrid.Controls
         private bool _suppressScrollEvents;
         private readonly GridLifecycleController _lifecycle = new GridLifecycleController();
         private Pen _gridLinePen;
+
+        // Theme state
+        // DPs that the theme engine wrote to — used to detect "user override" vs "theme value"
+        // and to clean up when switching back to Light.
+        private readonly HashSet<DependencyProperty> _themeWritten =
+            new HashSet<DependencyProperty>();
+
+        // Resource keys for DynamicResource-driven scrollbar colors.
+        internal const string ScrollBarTrackKey      = "ODG.ScrollBar.Track";
+        internal const string ScrollBarThumbKey      = "ODG.ScrollBar.Thumb";
+        internal const string ScrollBarThumbHoverKey = "ODG.ScrollBar.ThumbHover";
+        internal const string ScrollBarThumbDragKey  = "ODG.ScrollBar.ThumbDrag";
+
+        // Injected system-theme resolver — default reads the registry; tests can substitute a stub.
+        internal Func<bool> _isDarkSystemTheme = Rendering.SystemTheme.IsDark;
         internal double _hOffset;
         // Focused cell position — single source of truth lives in _navEngine.
         // These properties are the only way to read focused cell indices; all writes
@@ -377,6 +392,44 @@ public static readonly DependencyProperty RowReadOnlyBindingPathProperty =
 
         public bool LiveEdit { get; set; } = true;
 
+        // ── Theme ────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Visual theme for the grid.
+        /// <list type="bullet">
+        ///   <item><see cref="Models.GridTheme.Light"/> (default) — identical to the look before this feature; no changes to existing brushes.</item>
+        ///   <item><see cref="Models.GridTheme.Dark"/> — professional dark palette (VS Code-inspired).</item>
+        ///   <item><see cref="Models.GridTheme.System"/> — follows the Windows app color mode and reacts to changes at runtime.</item>
+        /// </list>
+        /// Explicitly set brush DPs (via XAML or code) always take priority over the theme.
+        /// </summary>
+        public static readonly DependencyProperty ThemeProperty =
+            DependencyProperty.Register(nameof(Theme), typeof(Models.GridTheme), typeof(OpenDataGrid),
+                new PropertyMetadata(Models.GridTheme.Light, OnThemeChanged));
+
+        // Chrome DPs — consumed by ControlTemplate via TemplateBinding.
+        // Defaults match today's hardcoded values → Theme=Light produces identical output.
+
+        /// <summary>Background of the header strip (behind header cells). Default: #F0F0F0.</summary>
+        public static readonly DependencyProperty HeaderAreaBackgroundProperty =
+            DependencyProperty.Register(nameof(HeaderAreaBackground), typeof(Brush), typeof(OpenDataGrid),
+                new PropertyMetadata(Rendering.ThemePalette.Light.HeaderAreaBackground));
+
+        /// <summary>Background of the per-column filter row strip. Default: #FAFAFA.</summary>
+        public static readonly DependencyProperty FilterRowBackgroundProperty =
+            DependencyProperty.Register(nameof(FilterRowBackground), typeof(Brush), typeof(OpenDataGrid),
+                new PropertyMetadata(Rendering.ThemePalette.Light.FilterRowBackground));
+
+        /// <summary>Border colour used for chrome separators (header/filter bottom border, outer border). Default: #CCCCCC.</summary>
+        public static readonly DependencyProperty ChromeBorderBrushProperty =
+            DependencyProperty.Register(nameof(ChromeBorderBrush), typeof(Brush), typeof(OpenDataGrid),
+                new PropertyMetadata(Rendering.ThemePalette.Light.ChromeBorder));
+
+        /// <summary>Background of the semi-transparent loading overlay. Default: #30FFFFFF.</summary>
+        public static readonly DependencyProperty LoadingOverlayBackgroundProperty =
+            DependencyProperty.Register(nameof(LoadingOverlayBackground), typeof(Brush), typeof(OpenDataGrid),
+                new PropertyMetadata(Rendering.ThemePalette.Light.LoadingOverlay));
+
         public static readonly DependencyProperty LoadingMessageProperty =
             DependencyProperty.Register(nameof(LoadingMessage), typeof(string), typeof(OpenDataGrid),
                 new PropertyMetadata(GetLocalizedLoadingMessage()));
@@ -461,6 +514,18 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
         public Models.LoadingIndicatorMode LoadingIndicatorMode { get => (Models.LoadingIndicatorMode)GetValue(LoadingIndicatorModeProperty); set => SetValue(LoadingIndicatorModeProperty, value); }
         /// <summary>Height of the per-column filter row shown under the header when any column has FilteringEnabled=true. Default: 26.</summary>
         public double FilterRowHeight { get => (double)GetValue(FilterRowHeightProperty); set => SetValue(FilterRowHeightProperty, value); }
+
+        /// <summary>Visual theme: Light (default), Dark, or System (follows Windows app color mode, reacts live).</summary>
+        public Models.GridTheme Theme { get => (Models.GridTheme)GetValue(ThemeProperty); set => SetValue(ThemeProperty, value); }
+
+        /// <summary>Background of the header strip. Managed by the theme; overridable.</summary>
+        public Brush HeaderAreaBackground { get => (Brush)GetValue(HeaderAreaBackgroundProperty); set => SetValue(HeaderAreaBackgroundProperty, value); }
+        /// <summary>Background of the filter row strip. Managed by the theme; overridable.</summary>
+        public Brush FilterRowBackground { get => (Brush)GetValue(FilterRowBackgroundProperty); set => SetValue(FilterRowBackgroundProperty, value); }
+        /// <summary>Chrome border colour (header bottom, filter bottom, outer border). Managed by the theme; overridable.</summary>
+        public Brush ChromeBorderBrush { get => (Brush)GetValue(ChromeBorderBrushProperty); set => SetValue(ChromeBorderBrushProperty, value); }
+        /// <summary>Loading overlay background. Managed by the theme; overridable.</summary>
+        public Brush LoadingOverlayBackground { get => (Brush)GetValue(LoadingOverlayBackgroundProperty); set => SetValue(LoadingOverlayBackgroundProperty, value); }
 
         #endregion
 
@@ -569,6 +634,11 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
         {
             _lifecycle.OnGridUnloaded();
 
+            // Detach static SystemEvents subscription to prevent memory leaks
+            // (SystemEvents holds a strong reference to event handlers).
+            if (Theme == Models.GridTheme.System)
+                Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+
             if (DataSource is System.Collections.Specialized.INotifyCollectionChanged ncc)
                 ncc.CollectionChanged -= OnCollectionChanged;
 
@@ -600,6 +670,10 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
         {
             if (!_lifecycle.IsUnloaded) return;
             _lifecycle.OnGridLoaded();
+
+            // Re-attach SystemEvents subscription if grid was in System mode when unloaded.
+            if (Theme == Models.GridTheme.System)
+                Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
             // Re-attach CollectionChanged so we track data mutations again.
             if (DataSource is System.Collections.Specialized.INotifyCollectionChanged ncc)
@@ -1030,7 +1104,7 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
         internal Brush GetEffectiveColumnSeparatorBrush()
         {
             if (ColumnSeparatorBrush != null) return ColumnSeparatorBrush;
-            var headerBg = HeaderBackground ?? new SolidColorBrush(Color.FromRgb(240, 240, 240));
+            var headerBg = HeaderBackground ?? Controls.HeaderPresenter.DefaultHeaderBackground;
             return Rendering.BrushShift.Apply(headerBg, 0.15);
         }
 
@@ -1079,6 +1153,126 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
             var pen = new Pen(brush, 1.0);
             pen.Freeze();
             return pen;
+        }
+
+        // ── Theme engine ─────────────────────────────────────────────────────────────
+
+        private static void OnThemeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var grid = (OpenDataGrid)d;
+            var prev = (Models.GridTheme)e.OldValue;
+            var next = (Models.GridTheme)e.NewValue;
+
+            // Manage SystemEvents subscription — subscribe only when Theme == System.
+            // Guard with IsUnloaded: OnGridLoaded handles the subscribe when the grid re-enters the tree,
+            // so subscribing here while Unloaded would create a duplicate when OnGridLoaded also subscribes.
+            if (prev == Models.GridTheme.System)
+                Microsoft.Win32.SystemEvents.UserPreferenceChanged -= grid.OnUserPreferenceChanged;
+            if (next == Models.GridTheme.System && !grid._lifecycle.IsUnloaded)
+                Microsoft.Win32.SystemEvents.UserPreferenceChanged += grid.OnUserPreferenceChanged;
+
+            grid.ApplyTheme();
+        }
+
+        private void OnUserPreferenceChanged(object sender, Microsoft.Win32.UserPreferenceChangedEventArgs e)
+        {
+            // Fired from a background thread; marshal to UI thread.
+            if (e.Category == Microsoft.Win32.UserPreferenceCategory.General)
+                Dispatcher.BeginInvoke(new Action(ApplyTheme), System.Windows.Threading.DispatcherPriority.Normal);
+        }
+
+        /// <summary>
+        /// Applies the resolved theme (Light or Dark) to all managed DPs and chrome resources,
+        /// honouring any explicit user overrides.
+        /// </summary>
+        private void ApplyTheme()
+        {
+            bool isDark = Theme == Models.GridTheme.Dark ||
+                          (Theme == Models.GridTheme.System && _isDarkSystemTheme());
+
+            var palette = isDark ? Rendering.ThemePalette.Dark : null; // null = revert to defaults
+
+            // ── 1. DPs managed by the theme ──────────────────────────────────────────
+            // Includes Control.Background, Control.BorderBrush, Control.Foreground and all grid brush DPs.
+
+            if (palette == null)
+            {
+                // Light: clear all values the theme previously wrote.
+                foreach (var dp in _themeWritten)
+                    ClearValue(dp);
+                _themeWritten.Clear();
+
+                // Revert chrome dynamic resources.
+                Resources.Remove(ScrollBarTrackKey);
+                Resources.Remove(ScrollBarThumbKey);
+                Resources.Remove(ScrollBarThumbHoverKey);
+                Resources.Remove(ScrollBarThumbDragKey);
+
+                // Revert drop-indicator to default.
+                _headerPresenter.DropIndicatorBrush = null;
+            }
+            else
+            {
+                // Dark: write each palette value unless the user has an explicit local override.
+                ApplyThemeDp(BackgroundProperty,             palette.ControlBackground);
+                ApplyThemeDp(BorderBrushProperty,           palette.ChromeBorder);
+                ApplyThemeDp(ForegroundProperty,            palette.Foreground);
+                ApplyThemeDp(HeaderBackgroundProperty,      palette.HeaderBackground);
+                ApplyThemeDp(HeaderForegroundProperty,      palette.HeaderForeground);
+                ApplyThemeDp(ColumnSeparatorBrushProperty,  palette.ColumnSeparator);
+                ApplyThemeDp(AlternateRowBackgroundProperty,palette.AlternateRowBackground);
+                ApplyThemeDp(RowBackgroundProperty,         palette.RowBackground);
+                ApplyThemeDp(SelectionBrushProperty,        palette.SelectionBrush);
+                ApplyThemeDp(GridLinesBrushProperty,        palette.GridLines);
+                ApplyThemeDp(HeaderAreaBackgroundProperty,  palette.HeaderAreaBackground);
+                ApplyThemeDp(FilterRowBackgroundProperty,   palette.FilterRowBackground);
+                ApplyThemeDp(ChromeBorderBrushProperty,     palette.ChromeBorder);
+                ApplyThemeDp(LoadingOverlayBackgroundProperty, palette.LoadingOverlay);
+
+                // Override scrollbar dynamic resources.
+                Resources[ScrollBarTrackKey]      = palette.ScrollBarTrack;
+                Resources[ScrollBarThumbKey]      = palette.ScrollBarThumb;
+                Resources[ScrollBarThumbHoverKey] = palette.ScrollBarThumbHover;
+                Resources[ScrollBarThumbDragKey]  = palette.ScrollBarThumbDrag;
+
+                // Override drop-indicator accent.
+                _headerPresenter.DropIndicatorBrush = palette.DropIndicator;
+            }
+
+            // ── 2. Propagate row-level changes not covered by existing DP callbacks ─
+            // (RowBackground, AlternateRowBackground, SelectionBrush, Foreground have no callbacks)
+            if (_lifecycle.CanHandleInput)
+            {
+                BuildRowColorResolver();
+                _rowEngine.UpdateRowBrushes(
+                    SelectionBrush,
+                    RowBackground ?? Rendering.ThemePalette.Light.RowBackground,
+                    _rowColorResolver,
+                    Foreground,
+                    SelectionForeground,
+                    AlternateRowShift);
+                // Refresh filter row cell backgrounds (reads RowBackground / HeaderBackground).
+                _filterRowPresenter.UpdateRowBackground();
+            }
+        }
+
+        /// <summary>
+        /// Writes <paramref name="value"/> to <paramref name="dp"/> on behalf of the theme,
+        /// but only when the user has NOT set an explicit local value.
+        /// Also allows overwriting a value that the theme itself previously wrote.
+        /// </summary>
+        private void ApplyThemeDp(DependencyProperty dp, Brush value)
+        {
+            var local = ReadLocalValue(dp);
+            bool isUnset      = ReferenceEquals(local, DependencyProperty.UnsetValue);
+            bool isThemeOwned = _themeWritten.Contains(dp);
+
+            if (isUnset || isThemeOwned)
+            {
+                SetValue(dp, value);
+                _themeWritten.Add(dp);
+            }
+            // else: user has an explicit local value — leave it alone.
         }
 
         private static void OnHiddenColumnsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -1265,6 +1459,25 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
             UpdateHScrollBar();
         }
 
+        /// <summary>
+        /// Called by <see cref="Columns.OpenDataGridColumn.BackgroundInvalidated"/> when a column's
+        /// Background DP changes. Finds the column's current visual index and asks the row engine
+        /// to repaint that column's cells across the entire pool.
+        /// </summary>
+        internal void InvalidateColumnBackground(Columns.OpenDataGridColumn col)
+        {
+            if (!_lifecycle.CanHandleInput) return;
+            var visible = _headerPresenter.GetVisibleColumnList();
+            for (int i = 0; i < visible.Count; i++)
+            {
+                if (ReferenceEquals(visible[i], col))
+                {
+                    _rowEngine.RefreshColumnBackground(i);
+                    return;
+                }
+            }
+        }
+
         internal void BuildPropertyAccessors()
         {
             var columns = GetVisibleColumnList();
@@ -1291,6 +1504,13 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
                     // No BindingPath: pass the whole data item (used by CustomColumn to set full DataContext)
                     _propertyGetters[i] = item => item;
                 }
+            }
+
+            // Wire up per-column Background invalidation so cells repaint when Column.Background changes.
+            for (int i = 0; i < count; i++)
+            {
+                var captured = columns[i];
+                captured.BackgroundInvalidated = () => InvalidateColumnBackground(captured);
             }
 
             var selector     = RowBackgroundSelector;
@@ -1560,12 +1780,13 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
             var selBrush           = SelectionBrush;
             var selForeground      = SelectionForeground;
             var gridForeground     = Foreground;
+            var defaultRowBg       = RowBackground ?? Rendering.ThemePalette.Light.RowBackground;
 
             IRowSlot SlotFactory(int poolIndex)
             {
                 var row = new OpenDataGridRow();
                 row.UpdateDefaultCellFont(CellFontFamily, CellFontSize, CellFontWeight);
-                row.Initialize(cols, widths, offsets, resolver, selBrush, AlternateRowShift, gridForeground, selForeground);
+                row.Initialize(cols, widths, offsets, resolver, selBrush, AlternateRowShift, gridForeground, selForeground, defaultRowBg);
                 row.PoolIndex = poolIndex;
                 return row;
             }

@@ -10,7 +10,7 @@ namespace Open.DataGrid.Tests.Rendering
     ///
     /// Priority hierarchy:
     ///   1. Highlighted (selected/focused) → auto-contrast brush derived from the resolved background
-    ///   2. Normal → Column.Foreground ?? Grid.Foreground ?? null
+    ///   2. Normal → Column.Foreground (always wins) ?? Grid.Foreground with contrast check ?? null
     ///
     /// Symmetric counterpart to <see cref="CellBackgroundResolverTests"/>.
     /// </summary>
@@ -134,6 +134,55 @@ namespace Open.DataGrid.Tests.Rendering
             // Then: null is returned so the caller can ClearValue(ForegroundProperty)
             // and let WPF's default inheritance apply.
             Assert.That(result, Is.Null);
+        }
+
+        // ── Auto-contrast in normal cell — dark mode light-background rows ─────
+
+        [Test]
+        public void Resolve_NormalCell_LightGridFg_LightBackground_AutoContrasts()
+        {
+            // Given: dark mode — grid foreground is light (#E0E0E0, lum ~224) and
+            // the row has a light background (White, lum 255). Both sides > 120 → poor contrast.
+            var lightGridFg = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0));
+            var lightBg     = Brushes.White;
+
+            // When
+            var result = CellForegroundResolver.Resolve(lightBg, isHighlighted: false, null, lightGridFg);
+
+            // Then: auto-contrast is applied — result must be darker than lightGridFg (not the same brush).
+            Assert.That(result, Is.Not.SameAs(lightGridFg), "Should auto-contrast, not return gridFg directly");
+            var fg = ((SolidColorBrush)result).Color;
+            Assert.That(fg.R, Is.LessThan(lightBg.Color.R), "R should be darker than the light background");
+        }
+
+        [Test]
+        public void Resolve_NormalCell_LightGridFg_DarkBackground_UsesGridFg()
+        {
+            // Given: dark mode — grid foreground is light (#E0E0E0, lum ~224) and
+            // the row has a dark background (#1E1E1E, lum ~30). Opposite sides → good contrast.
+            var lightGridFg = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0));
+            var darkBg      = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
+
+            // When
+            var result = CellForegroundResolver.Resolve(darkBg, isHighlighted: false, null, lightGridFg);
+
+            // Then: gridFg is returned as-is — light text on dark bg is already readable.
+            Assert.That(result, Is.SameAs(lightGridFg));
+        }
+
+        [Test]
+        public void Resolve_NormalCell_ColumnFgSet_AlwaysReturnsColumnFg()
+        {
+            // Given: column foreground is set, even though gridFg+bg would cause poor contrast.
+            var lightGridFg = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0));
+            var lightBg     = Brushes.White;
+            var columnFg    = Brushes.DarkRed;
+
+            // When
+            var result = CellForegroundResolver.Resolve(lightBg, isHighlighted: false, columnFg, lightGridFg);
+
+            // Then: explicit column foreground always wins, no auto-contrast override.
+            Assert.That(result, Is.SameAs(columnFg));
         }
     }
 }

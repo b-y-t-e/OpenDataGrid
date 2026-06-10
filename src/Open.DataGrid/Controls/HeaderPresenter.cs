@@ -21,6 +21,17 @@ namespace Open.DataGrid.Controls
         private const int SortIconDefaultFontSize = 9;
         private const int ResizeThumbWidth = 4;
 
+        // Frozen fallback used when HeaderBackground is null (Light theme default = #F0F0F0).
+        // Shared across all instances and calls — avoids per-cell allocations in the update loop.
+        internal static readonly Brush DefaultHeaderBackground = CreateFrozen(Color.FromRgb(240, 240, 240));
+
+        private static SolidColorBrush CreateFrozen(Color c)
+        {
+            var b = new SolidColorBrush(c);
+            b.Freeze();
+            return b;
+        }
+
         private readonly OpenDataGrid _grid;
 
         // -----------------------------------------------------------------------
@@ -49,6 +60,13 @@ namespace Open.DataGrid.Controls
         private Border          _dragBorder;
         private Rectangle       _dropIndicator;
         private KeyEventHandler _escapeHandler;
+
+        /// <summary>
+        /// Brush used for the column-reorder drop indicator rectangle.
+        /// <c>null</c> reverts to the built-in DodgerBlue default.
+        /// Set by the theme engine when <see cref="OpenDataGrid.Theme"/> changes.
+        /// </summary>
+        public Brush DropIndicatorBrush { get; set; }
 
         // -----------------------------------------------------------------------
         // Inner types
@@ -307,7 +325,7 @@ namespace Open.DataGrid.Controls
             {
                 var h = _headerCells[i];
                 ApplyHeaderFontDefaults(h.HeaderText, h.SortIcon);
-                h.Border.Background = _grid.HeaderBackground ?? new SolidColorBrush(Color.FromRgb(240, 240, 240));
+                h.Border.Background = _grid.HeaderBackground ?? DefaultHeaderBackground;
             }
         }
 
@@ -518,7 +536,7 @@ namespace Open.DataGrid.Controls
                 {
                     Width            = 2,
                     Height           = _grid.HeaderHeight,
-                    Fill             = Brushes.DodgerBlue,
+                    Fill             = DropIndicatorBrush ?? Brushes.DodgerBlue,
                     IsHitTestVisible = false
                 };
                 _headerCanvas.Children.Add(_dropIndicator);

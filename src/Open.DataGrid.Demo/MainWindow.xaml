@@ -4,6 +4,7 @@
         xmlns:edg="clr-namespace:Open.DataGrid.Controls;assembly=Open.DataGrid"
         xmlns:col="clr-namespace:Open.DataGrid.Columns;assembly=Open.DataGrid"
         xmlns:nav="clr-namespace:Open.DataGrid.Models;assembly=Open.DataGrid"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         DataContext="{Binding Main, Source={StaticResource Locator}}"
         Title="OpenDataGrid — Performance Demo (1M × 40 columns)"
         Height="750" Width="1400">
@@ -48,6 +49,18 @@
                 <ComboBoxItem Content="Horizontal" Tag="{x:Static nav:GridLinesVisibility.Horizontal}"/>
                 <ComboBoxItem Content="Vertical" Tag="{x:Static nav:GridLinesVisibility.Vertical}"/>
                 <ComboBoxItem Content="None" Tag="{x:Static nav:GridLinesVisibility.None}"/>
+            </ComboBox>
+            <Separator/>
+            <TextBlock Text="Theme:" VerticalAlignment="Center" Margin="4,0"/>
+            <ComboBox SelectedValue="{Binding CurrentTheme, Mode=TwoWay}"
+                      SelectedValuePath="Tag"
+                      Width="80"
+                      Margin="4,0,0,0"
+                      VerticalAlignment="Center"
+                      ToolTip="Light: bright default  |  Dark: VS Code-style dark  |  System: follows Windows app colour mode (live)">
+                <ComboBoxItem Content="Light"  Tag="{x:Static nav:GridTheme.Light}"/>
+                <ComboBoxItem Content="Dark"   Tag="{x:Static nav:GridTheme.Dark}"/>
+                <ComboBoxItem Content="System" Tag="{x:Static nav:GridTheme.System}"/>
             </ComboBox>
         </ToolBar>
 
@@ -117,6 +130,7 @@
             SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
             CheckedItems="{Binding CheckedRows, Mode=OneWay}"
             IsReadOnly="{Binding IsGridReadOnly}"
+            Theme="{Binding CurrentTheme}"
             RowHeight="26"
             AllowColumnReorder="True"
             HeaderHeight="32"
@@ -131,20 +145,20 @@
 
                 <!-- String / Label columns -->
                 <col:OpenDataGridIntegerColumn Header="Seq#"         BindingPath="SequenceNo"   Width="70"/>
-                <col:OpenDataGridLabelColumn Header="Name"         BindingPath="Name"         Width="130" Background="LightYellow" FilteringEnabled="True"/>
+                <col:OpenDataGridLabelColumn Header="Name"         BindingPath="Name"         Width="130" Background="{Binding HighlightColBackground}" FilteringEnabled="True"/>
                 <col:OpenDataGridLabelColumn Header="Opis"  BindingPath="Description"  Width="200"/>
-                <col:OpenDataGridLabelColumn Header="Kategoria"     BindingPath="Category"     Width="100" Background="LightYellow" FilteringEnabled="True"/>
+                <col:OpenDataGridLabelColumn Header="Kategoria"     BindingPath="Category"     Width="100" Background="{Binding HighlightColBackground}" FilteringEnabled="True"/>
                 <col:OpenDataGridLabelColumn Header="Status"       BindingPath="Status"       Width="90"/>
                 <col:OpenDataGridLabelColumn Header="Code"         BindingPath="Code"         Width="90"/>
                 <col:OpenDataGridLabelColumn Header="Reference"    BindingPath="Reference"    Width="90"/>
                 <col:OpenDataGridLabelColumn Header="Notes"        BindingPath="Notes"        Width="120"/>
                 <col:OpenDataGridLabelColumn Header="Tag1"         BindingPath="Tag1"         Width="60"/>
                 <col:OpenDataGridLabelColumn Header="Tag2"         BindingPath="Tag2"         Width="60"/>
-                <col:OpenDataGridIntegerColumn Header="Towar Qty"  BindingPath="Towar.Qty"    Width="85"  Minimum="0" Maximum="999" Background="LightCyan"/>
-                <col:OpenDataGridLabelColumn Header="Towar Symbol" BindingPath="Towar.Symbol" Width="120" IsReadOnly="True" Background="Lavender"/>
+                <col:OpenDataGridIntegerColumn Header="Towar Qty"  BindingPath="Towar.Qty"    Width="85"  Minimum="0" Maximum="999" Background="{Binding SecondaryColBackground}"/>
+                <col:OpenDataGridLabelColumn Header="Towar Symbol" BindingPath="Towar.Symbol" Width="120" IsReadOnly="True" Background="{Binding TertiaryColBackground}"/>
 
                 <!-- Decimal columns -->
-                <col:OpenDataGridDecimalColumn Header="Price"       BindingPath="Price"       Width="90"  DecimalPlaces="2" Minimum="0" Maximum="9999.99" Background="LightYellow" FilteringEnabled="True"/>
+                <col:OpenDataGridDecimalColumn Header="Price"       BindingPath="Price"       Width="90"  DecimalPlaces="2" Minimum="0" Maximum="9999.99" Background="{Binding HighlightColBackground}" FilteringEnabled="True"/>
                 <col:OpenDataGridDecimalColumn Header="Wartość"     BindingPath="Wartosc"     Width="110" DecimalPlaces="2" IsReadOnly="True"/>
                 <col:OpenDataGridDecimalColumn Header="Amount"      BindingPath="Amount"      Width="100" DecimalPlaces="2" Minimum="0"/>
                 <col:OpenDataGridDecimalColumn Header="Tax"         BindingPath="Tax"         Width="80"  DecimalPlaces="2" Minimum="0"/>

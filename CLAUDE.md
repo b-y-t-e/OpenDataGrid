@@ -10,7 +10,7 @@ OpenDataGrid.slnx
 src/
 ├── Open.DataGrid/          # Control library
 ├── Open.DataGrid.Demo/     # Test application (MVVMLight, 1,000,000 rows)
-└── Open.DataGrid.Tests/    # Unit tests (NUnit 3, 436 unit + 75 integration = 511 total)
+└── Open.DataGrid.Tests/    # Unit tests (NUnit 3, 451 unit + 75 integration = 526 total)
 ```
 
 ---
@@ -316,6 +316,7 @@ The `Open.DataGrid.Demo` project uses **GalaSoft MVVMLight** (`MvvmLightLibs 5.4
 
 ## Code Conventions
 
+- **Everything in English** — code, comments, commit messages, PR descriptions, documentation. No exceptions.
 - Language: C# 7.3, .NET Framework 4.6.2
 - Naming: PascalCase for types and properties, `_camelCase` for private fields
 - Dependency Properties: `XxxProperty` constant + CLR wrapper, standard WPF pattern
@@ -392,6 +393,67 @@ Moves cell focus to the specified column (match by `Header` or `BindingPath`, ca
 
 ---
 
+## Theming / Dark Mode
+
+### `Theme` DP (`GridTheme` enum, default `Light`)
+
+| Value | Behaviour |
+|---|---|
+| `Light` | Default — identical to the appearance before this feature. Sets nothing; all existing brush defaults apply. |
+| `Dark` | Professional dark palette (VS Code-inspired: `#1E1E1E` rows, `#2D2D30` header, `#E0E0E0` text, `#094771` selection). |
+| `System` | Reads `HKCU\...\Themes\Personalize\AppsUseLightTheme` and reacts **live** to `SystemEvents.UserPreferenceChanged`. |
+
+### Override rule — user values always win
+
+The theme is a *default layer*, not an override. `ApplyTheme` tracks which DPs it wrote (`_themeWritten` dictionary). It only writes to a DP when:
+1. The local value is `DependencyProperty.UnsetValue` (user never set it), **or**
+2. The current local value equals the value the theme previously wrote (re-theming its own value).
+
+This means: set `HeaderBackground = Brushes.Green` in XAML → switching to Dark leaves it green.
+
+### Managed DPs (theme writes these when Dark)
+
+`Control.Background`, `Control.BorderBrush`, `Control.Foreground`, `HeaderBackground`, `HeaderForeground`,
+`ColumnSeparatorBrush`, `AlternateRowBackground`, `RowBackground`, `SelectionBrush`, `GridLinesBrush`,
+`HeaderAreaBackground`, `FilterRowBackground`, `ChromeBorderBrush`, `LoadingOverlayBackground`.
+
+### Chrome DPs (new, consumed by ControlTemplate)
+
+| DP | Default (Light) | Dark value | Used in template |
+|---|---|---|---|
+| `HeaderAreaBackground` | `#F0F0F0` | `#2D2D30` | header strip `Background` |
+| `FilterRowBackground` | `#FAFAFA` | `#252526` | filter strip `Background` |
+| `ChromeBorderBrush` | `#CCCCCC` | `#3F3F46` | header/filter bottom border; outer `BorderBrush` |
+| `LoadingOverlayBackground` | `#30FFFFFF` | `#40000000` | `PART_LoadingOverlay` `Background` |
+
+### ScrollBars
+
+Custom minimal style (`ODG.ScrollBarStyle` in `Generic.xaml`) — no arrows, rounded thumb.
+Colours via `DynamicResource` keys (`ODG.ScrollBar.Track`, `ODG.ScrollBar.Thumb`, `ODG.ScrollBar.ThumbHover`, `ODG.ScrollBar.ThumbDrag`).
+Light defaults are defined as static resources in `Generic.xaml`; Dark values are pushed into `this.Resources` per-instance by `ApplyTheme`.
+
+### Palette source
+
+`src/Open.DataGrid/Rendering/ThemePalette.cs` — two static frozen-brush instances `ThemePalette.Light` and `ThemePalette.Dark`.
+System theme detection: `src/Open.DataGrid/Rendering/SystemTheme.cs` (`IsDark()` reads registry).
+
+### Live System refresh
+
+`OnThemeChanged` subscribes to `Microsoft.Win32.SystemEvents.UserPreferenceChanged` (category `General`) **only when `Theme == System`**.
+Handler marshals to the UI dispatcher and calls `ApplyTheme()`. Subscription is released in `OnGridUnloaded` and re-attached in `OnGridLoaded` to prevent memory leaks (static event).
+
+### XAML usage
+
+```xml
+<!-- Explicit dark mode -->
+<edg:OpenDataGrid Theme="Dark" .../>
+
+<!-- Follow Windows (live) -->
+<edg:OpenDataGrid Theme="{Binding CurrentTheme}" .../>
+```
+
+---
+
 ## Dependency Properties — Overview
 
 Beyond the sections above, key grid DPs:
@@ -410,6 +472,11 @@ Beyond the sections above, key grid DPs:
 | `Column.MinWidth/MaxWidth` | `double` | clamping on header resize thumb |
 | `Column.Foreground` | `Brush` | cell text color in the column |
 | `Column.BackgroundOverridesData` | `bool` (default `true`) | priority of `Column.Background` vs `CellBackgroundBindingPath` |
+| `Theme` | `GridTheme` (default `Light`) | visual theme: `Light` / `Dark` / `System`; see **Theming** section |
+| `HeaderAreaBackground` | `Brush` | header strip bg; default `#F0F0F0`; template-binding |
+| `FilterRowBackground` | `Brush` | filter strip bg; default `#FAFAFA`; template-binding |
+| `ChromeBorderBrush` | `Brush` | chrome separator/border colour; default `#CCCCCC`; template-binding |
+| `LoadingOverlayBackground` | `Brush` | loading overlay; default `#30FFFFFF`; template-binding |
 
 ## Rendering Layer API
 
@@ -429,7 +496,7 @@ When modifying rendering code — to avoid rewriting what already exists:
 
 ## Unit Tests
 
-The `Open.DataGrid.Tests` project (NUnit 3, STA) — **436 unit tests + 75 integration tests = 511 total across 41 files**, covering logic isolated from UI:
+The `Open.DataGrid.Tests` project (NUnit 3, STA) — **451 unit tests + 75 integration tests = 526 total across 42 files**, covering logic isolated from UI:
 
 | What is tested | Test class | Count |
 |---|---|---|
@@ -473,6 +540,7 @@ The `Open.DataGrid.Tests` project (NUnit 3, STA) — **436 unit tests + 75 integ
 | Header interactions before data is loaded | `LoadingStateInteractionTests` | 4 |
 | DiacriticsHelper — PL/Unicode normalisation, edge cases | `DiacriticsHelperTests` | 22 |
 | CellForegroundResolver — highlight contrast, column/grid fallback | `CellForegroundResolverTests` | 7 |
+| Theme palette sanity, DP apply/revert, user override, System stub | `ThemeTests` | 15 |
 
 **Testability boundary** — UI classes requiring a visual tree are tested in `SelectedItemTests` by hosting in a `Window` (tests marked `[Category("Integration")]`). `NavigationEngine.HandleKeyDown` requires `PresentationSource` — not unit tested.
 
@@ -517,8 +585,9 @@ vstest.console.exe src\Open.DataGrid.Tests\bin\Debug\net462\Open.DataGrid.Tests.
 - `OpenDataGridRow.UpdateColumnLayout` is called on every horizontal scroll change — if the column count is very large, consider debouncing
 - Editing value written via Fasterflect setter — for `INotifyPropertyChanged` scenarios the model is responsible for notifying about the change
 - ✅ Column resizing with mouse — implemented (`HeaderPresenter`, `Thumb` with `Cursors.SizeWE`)
-- ✅ Unit tests — implemented (436 unit + 75 integration = 511 total, 41 files in `Open.DataGrid.Tests`)
+- ✅ Unit tests — implemented (451 unit + 75 integration = 526 total, 42 files in `Open.DataGrid.Tests`)
 - ✅ Loading indicator + deferred render — `LoadingIndicatorMode`, async filter, coalescing `CollectionChanged`, `NotifyFilterPending/Ready`
+- ✅ Dark Mode / Theme (Light / Dark / System) — `Theme` DP (`GridTheme` enum); live System follows Windows `AppsUseLightTheme` via `SystemEvents`; palette in `ThemePalette`; user-set brush values always override theme; 15 unit tests
 - ✅ `OpenDataGridBooleanColumn` — implemented
 - ✅ Architecture refactor — `SelectionFocusSynchronizer`, `GridWorkCoordinator`, `HeaderPresenter`, `HiddenColumnsTracker`
 - ✅ Lifecycle state machine — `GridLifecycleController` + `GridLifecycleState` replace `_initialized`, `_wasUnloaded`, `_rowEngineNeedsReinit` flags; 43 unit tests

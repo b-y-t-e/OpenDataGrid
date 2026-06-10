@@ -36,6 +36,7 @@ namespace Open.DataGrid.Controls
 
         private Func<int, object, Brush> _colorResolver;
         private Brush _resolvedBackground;
+        private Brush _defaultRowBackground;   // fallback when _resolvedBackground == null (respects theme)
         private Brush _selectionBrush;
         private Brush _gridForeground;
         private double _alternateRowShift;
@@ -127,15 +128,17 @@ if (_gridLinePen == null
             Brush selectionBrush,
             double alternateRowShift = 0.0,
             Brush gridForeground = null,
-            Brush selectionForeground = null)
+            Brush selectionForeground = null,
+            Brush defaultRowBackground = null)
         {
             _columnCount          = columns.Count;
             _columnWidths         = columnWidths;
             _columnOffsets        = columnOffsets;
             _colorResolver        = colorResolver;
-            _selectionBrush    = selectionBrush;
-            _gridForeground    = gridForeground;
-            _alternateRowShift = alternateRowShift;
+            _selectionBrush       = selectionBrush;
+            _gridForeground       = gridForeground;
+            _alternateRowShift    = alternateRowShift;
+            _defaultRowBackground = defaultRowBackground;
 
             _bindingPaths = new string[_columnCount];
             _cells = new OpenDataGridCell[_columnCount];
@@ -149,7 +152,53 @@ if (_gridLinePen == null
                 Children.Add(_cells[i]);
             }
 
-            Background = Brushes.White;
+            Background = _defaultRowBackground ?? Brushes.White;
+        }
+
+        /// <summary>
+        /// Propagates a live theme change to the row: updates brushes, re-resolves the row background
+        /// and refreshes the visual state of all cells. Called by the virtualization engine when the
+        /// grid's <c>Theme</c> property changes.
+        /// </summary>
+        public void UpdateRowBrushes(
+            Brush selectionBrush,
+            Brush defaultRowBackground,
+            Func<int, object, Brush> colorResolver,
+            Brush gridForeground,
+            Brush selectionForeground,
+            double alternateRowShift)
+        {
+            _selectionBrush       = selectionBrush;
+            _defaultRowBackground = defaultRowBackground;
+            _colorResolver        = colorResolver;
+            _gridForeground       = gridForeground;
+            _alternateRowShift    = alternateRowShift;
+
+            // Re-resolve background before updating cells so UpdateRowState gets the fresh value.
+            if (DataIndex >= 0 && DataItem != null)
+                _resolvedBackground = _colorResolver?.Invoke(DataIndex, DataItem);
+            else
+                _resolvedBackground = null;
+
+            UpdateBackground(IsSelected);
+
+            // Single pass: push new selection brush and resolved background to all cells.
+            if (_cells != null)
+                for (int i = 0; i < _columnCount; i++)
+                {
+                    _cells[i]?.UpdateSelectionBrush(selectionBrush, alternateRowShift, gridForeground, selectionForeground);
+                    _cells[i]?.UpdateRowState(_resolvedBackground, IsSelected, _isAlternateRow);
+                }
+        }
+
+        /// <summary>
+        /// Forces the cell at <paramref name="colIndex"/> to re-read its column's Background and repaint.
+        /// Called when <see cref="Columns.OpenDataGridColumn.Background"/> changes while this row is live.
+        /// </summary>
+        public void RefreshCellBackground(int colIndex)
+        {
+            if (_cells == null || colIndex < 0 || colIndex >= _columnCount) return;
+            _cells[colIndex]?.UpdateRowState(_resolvedBackground, IsSelected, _isAlternateRow);
         }
 
         /// <summary>
@@ -319,7 +368,7 @@ if (_gridLinePen == null
             else if (_isRowChecked && _checkedRowBackground != null)
                 bg = _checkedRowBackground;
             else
-                bg = _resolvedBackground ?? Brushes.White;
+                bg = _resolvedBackground ?? _defaultRowBackground ?? Brushes.White;
             Background = bg;
         }
 
