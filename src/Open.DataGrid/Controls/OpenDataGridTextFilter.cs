@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
@@ -362,7 +363,7 @@ namespace Open.DataGrid.Controls
                 if (type != cachedType)
                 {
                     cachedType = type;
-                    cachedGetters = BuildGettersForType(type, fieldNames);
+                    cachedGetters = BuildGettersForType(type, fieldNames, item);
                 }
 
                 var getters = cachedGetters;
@@ -393,7 +394,9 @@ namespace Open.DataGrid.Controls
 
         // Only properties of type exactly `string` are scanned.
         // Explicit FilterFields entries may use nested paths ("A.B"); automatic scan still covers top-level string properties only.
-        private static List<Func<object, string>> BuildGettersForType(Type itemType, string[] fieldNames)
+        // For DataRowView with no FilterFields, all table columns are included (schema read from firstItem).
+        // For IDictionary<string,object>, automatic scan is not possible — specify FilterFields explicitly.
+        private static List<Func<object, string>> BuildGettersForType(Type itemType, string[] fieldNames, object firstItem = null)
         {
             var getters = new List<Func<object, string>>();
 
@@ -408,9 +411,23 @@ namespace Open.DataGrid.Controls
                         getters.Add(getter);
                 }
             }
+            else if (itemType == typeof(DataRowView))
+            {
+                var row = firstItem as DataRowView;
+                if (row != null)
+                {
+                    foreach (DataColumn col in row.DataView.Table.Columns)
+                    {
+                        var colName = col.ColumnName;
+                        Func<object, string> getter;
+                        if (PropertyAccessorCache.TryCreateStringGetter(itemType, colName, out getter))
+                            getters.Add(getter);
+                    }
+                }
+            }
             else
             {
-                // All string properties
+                // All string properties on POCO types
                 foreach (var prop in itemType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
                 {
                     if (prop.PropertyType != typeof(string)) continue;

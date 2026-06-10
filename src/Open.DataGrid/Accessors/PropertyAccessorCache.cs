@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Data;
 using System.Reflection;
 using System.Windows.Media;
 using Fasterflect;
@@ -81,6 +83,25 @@ namespace Open.DataGrid.Accessors
         {
             getter = null;
             if (type == null || string.IsNullOrWhiteSpace(propertyName)) return false;
+
+            if (type == typeof(DataRowView))
+            {
+                var name = propertyName;
+                getter = item => item == null ? null : ((DataRowView)item)[name]?.ToString();
+                return true;
+            }
+
+            if (typeof(IDictionary<string, object>).IsAssignableFrom(type))
+            {
+                var key = propertyName;
+                getter = item =>
+                {
+                    if (item == null) return null;
+                    object v;
+                    return ((IDictionary<string, object>)item).TryGetValue(key, out v) ? v?.ToString() : null;
+                };
+                return true;
+            }
 
             var segments = SplitPropertyPath(propertyName);
             if (segments.Length > 1)
@@ -366,6 +387,20 @@ namespace Open.DataGrid.Accessors
             setter = null;
             if (type == null || string.IsNullOrWhiteSpace(propertyName)) return false;
 
+            if (type == typeof(DataRowView))
+            {
+                var name = propertyName;
+                setter = (item, value) => { if (item != null) ((DataRowView)item)[name] = value; };
+                return true;
+            }
+
+            if (typeof(IDictionary<string, object>).IsAssignableFrom(type))
+            {
+                var key = propertyName;
+                setter = (item, value) => { if (item != null) ((IDictionary<string, object>)item)[key] = value; };
+                return true;
+            }
+
             if (type.IsValueType)
             {
                 var property = type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
@@ -415,6 +450,25 @@ namespace Open.DataGrid.Accessors
             getter = null;
             if (type == null || string.IsNullOrWhiteSpace(propertyName)) return false;
 
+            if (type == typeof(DataRowView))
+            {
+                var name = propertyName;
+                getter = item => item == null ? null : TryGetDataRowViewValue((DataRowView)item, name);
+                return true;
+            }
+
+            if (typeof(IDictionary<string, object>).IsAssignableFrom(type))
+            {
+                var key2 = propertyName;
+                getter = item =>
+                {
+                    if (item == null) return null;
+                    object v;
+                    return ((IDictionary<string, object>)item).TryGetValue(key2, out v) ? v : null;
+                };
+                return true;
+            }
+
             var key = new AccessorKey(type, propertyName);
             try
             {
@@ -425,6 +479,12 @@ namespace Open.DataGrid.Accessors
             {
                 return false;
             }
+        }
+
+        private static object TryGetDataRowViewValue(DataRowView row, string columnName)
+        {
+            try { return row[columnName]; }
+            catch { return null; }
         }
 
         private static bool TryGetMemberSetter(Type type, string propertyName, out MemberSetter setter)

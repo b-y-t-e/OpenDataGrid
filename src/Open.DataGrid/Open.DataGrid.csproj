@@ -6,7 +6,7 @@
     <RootNamespace>Open.DataGrid</RootNamespace>
 
     <PackageId>Open.DataGrid</PackageId>
-    <Version>1.2.14</Version>
+    <Version>1.2.16</Version>
     <Title>Open.DataGrid</Title>
     <Authors>OpenDataGrid Contributors</Authors>
     <Company></Company>
@@ -21,6 +21,9 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Fasterflect.Netstandard" Version="1.0.9" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net462' Or '$(TargetFramework)' == 'net48'">
+    <Reference Include="System.Data" />
   </ItemGroup>
   <!-- Themes\Generic.xaml gets Page build action automatically via UseWPF -->
 </Project>

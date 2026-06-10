@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Data;
 using Open.DataGrid.Accessors;
 using NUnit.Framework;
 
@@ -259,6 +261,136 @@ namespace Open.DataGrid.Tests.Accessors
 
             // Then: the updated struct value is written back to the original owner.
             Assert.That(product.Details.QuantityInfo.Quantity, Is.EqualTo(7));
+        }
+
+        private static DataRowView MakeDataRowView(string col1Name, object col1Value, string col2Name = null, object col2Value = null)
+        {
+            var table = new DataTable();
+            table.Columns.Add(col1Name);
+            if (col2Name != null) table.Columns.Add(col2Name);
+            var row = table.NewRow();
+            row[col1Name] = col1Value ?? DBNull.Value;
+            if (col2Name != null) row[col2Name] = col2Value ?? DBNull.Value;
+            table.Rows.Add(row);
+            return table.DefaultView[0];
+        }
+
+        [Test]
+        public void CreateGetter_DataRowView_ReturnsColumnValue()
+        {
+            // Given: a DataRowView with a known column.
+            var getter = PropertyAccessorCache.CreateGetter("Name");
+            var drv = MakeDataRowView("Name", "Alice");
+
+            // When: getter is invoked.
+            var value = getter(drv);
+
+            // Then: the column value is returned.
+            Assert.That(value, Is.EqualTo("Alice"));
+        }
+
+        [Test]
+        public void CreateGetter_DataRowView_MissingColumn_ReturnsNull()
+        {
+            // Given: a DataRowView without the requested column.
+            var getter = PropertyAccessorCache.CreateGetter("Missing");
+            var drv = MakeDataRowView("Name", "Alice");
+
+            // When: getter is invoked.
+            object value = null;
+            Assert.DoesNotThrow(() => value = getter(drv));
+
+            // Then: null is returned without exception.
+            Assert.That(value, Is.Null);
+        }
+
+        [Test]
+        public void CreateSetter_DataRowView_SetsColumnValue()
+        {
+            // Given: a DataRowView with a writable column.
+            var setter = PropertyAccessorCache.CreateSetter("Name");
+            var drv = MakeDataRowView("Name", "Before");
+
+            // When: setter is invoked.
+            setter(drv, "After");
+
+            // Then: the column value is updated.
+            Assert.That(drv["Name"], Is.EqualTo("After"));
+        }
+
+        [Test]
+        public void TryCreateStringGetter_DataRowView_ReturnsStringValue()
+        {
+            // Given: a DataRowView.
+            var drv = MakeDataRowView("City", "Warsaw");
+            Func<object, string> getter;
+            bool created = PropertyAccessorCache.TryCreateStringGetter(typeof(DataRowView), "City", out getter);
+
+            // When: getter is invoked.
+            var value = getter(drv);
+
+            // Then: creation succeeds and the string value is returned.
+            Assert.That(created, Is.True);
+            Assert.That(value, Is.EqualTo("Warsaw"));
+        }
+
+        [Test]
+        public void CreateGetter_Dictionary_ReturnsKeyValue()
+        {
+            // Given: a Dictionary<string, object> with a known key.
+            var getter = PropertyAccessorCache.CreateGetter("Name");
+            var dict = new Dictionary<string, object> { ["Name"] = "Bob" };
+
+            // When: getter is invoked.
+            var value = getter(dict);
+
+            // Then: the key value is returned.
+            Assert.That(value, Is.EqualTo("Bob"));
+        }
+
+        [Test]
+        public void CreateGetter_Dictionary_MissingKey_ReturnsNull()
+        {
+            // Given: a Dictionary without the requested key.
+            var getter = PropertyAccessorCache.CreateGetter("Missing");
+            var dict = new Dictionary<string, object> { ["Name"] = "Bob" };
+
+            // When: getter is invoked.
+            object value = null;
+            Assert.DoesNotThrow(() => value = getter(dict));
+
+            // Then: null is returned without exception.
+            Assert.That(value, Is.Null);
+        }
+
+        [Test]
+        public void CreateSetter_Dictionary_SetsKeyValue()
+        {
+            // Given: a Dictionary<string, object>.
+            var setter = PropertyAccessorCache.CreateSetter("Name");
+            var dict = new Dictionary<string, object> { ["Name"] = "Before" };
+
+            // When: setter is invoked.
+            setter(dict, "After");
+
+            // Then: the key value is updated.
+            Assert.That(dict["Name"], Is.EqualTo("After"));
+        }
+
+        [Test]
+        public void TryCreateStringGetter_Dictionary_ReturnsStringValue()
+        {
+            // Given: a Dictionary<string, object>.
+            var dict = new Dictionary<string, object> { ["Country"] = "Poland" };
+            Func<object, string> getter;
+            bool created = PropertyAccessorCache.TryCreateStringGetter(typeof(Dictionary<string, object>), "Country", out getter);
+
+            // When: getter is invoked.
+            var value = getter(dict);
+
+            // Then: creation succeeds and the string value is returned.
+            Assert.That(created, Is.True);
+            Assert.That(value, Is.EqualTo("Poland"));
         }
     }
 }
