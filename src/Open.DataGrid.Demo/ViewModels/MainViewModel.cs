@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
+using Microsoft.Win32;
 using Open.DataGrid.Demo.Models;
 using Open.DataGrid.Models;
 using Open.DataGrid.Rendering;
@@ -62,11 +63,10 @@ namespace Open.DataGrid.Demo.ViewModels
             get => _currentTheme;
             set
             {
+                var prev = _currentTheme;
                 Set(ref _currentTheme, value);
-                // Notify all theme-dependent brush properties so column backgrounds update.
-                RaisePropertyChanged(nameof(HighlightColBackground));
-                RaisePropertyChanged(nameof(SecondaryColBackground));
-                RaisePropertyChanged(nameof(TertiaryColBackground));
+                UpdateSystemEventsSubscription(prev, value);
+                RaiseColumnBackgrounds();
             }
         }
 
@@ -74,6 +74,27 @@ namespace Open.DataGrid.Demo.ViewModels
         private bool IsEffectivelyDark
             => CurrentTheme == GridTheme.Dark ||
                (CurrentTheme == GridTheme.System && SystemTheme.IsDark());
+
+        private void UpdateSystemEventsSubscription(GridTheme prev, GridTheme next)
+        {
+            if (prev == GridTheme.System)
+                SystemEvents.UserPreferenceChanged -= OnSystemPreferenceChanged;
+            if (next == GridTheme.System)
+                SystemEvents.UserPreferenceChanged += OnSystemPreferenceChanged;
+        }
+
+        private void OnSystemPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+        {
+            if (e.Category == UserPreferenceCategory.General)
+                Application.Current?.Dispatcher.BeginInvoke((Action)RaiseColumnBackgrounds);
+        }
+
+        private void RaiseColumnBackgrounds()
+        {
+            RaisePropertyChanged(nameof(HighlightColBackground));
+            RaisePropertyChanged(nameof(SecondaryColBackground));
+            RaisePropertyChanged(nameof(TertiaryColBackground));
+        }
 
         // Frozen dark-mode column backgrounds — allocated once, shared across all accesses.
         private static readonly Brush _highlightDark  = FreezeBrush(Color.FromRgb(0x28, 0x27, 0x1E));
@@ -143,8 +164,17 @@ namespace Open.DataGrid.Demo.ViewModels
             ClearSelectionCommand = new RelayCommand(() => SelectedItem = null);
             SelectRandomRowCommand = new RelayCommand(SelectRandomRow);
 
+            UpdateSystemEventsSubscription(GridTheme.Light, _currentTheme);
+
             // Load initial data
             _ = LoadDataAsync(1_000_000);
+        }
+
+        public override void Cleanup()
+        {
+            if (_currentTheme == GridTheme.System)
+                SystemEvents.UserPreferenceChanged -= OnSystemPreferenceChanged;
+            base.Cleanup();
         }
 
         private async Task LoadDataAsync(int count)
