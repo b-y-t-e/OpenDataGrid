@@ -16,7 +16,8 @@ A high-performance, fully custom WPF grid built from scratch — no `DataGrid`, 
 - **Text and combo filters** — debounced multi-field filter, distinct-value filter; multiple filters combine as AND
 - **Column hiding** — via `HiddenColumns` DP, matched by header or binding path
 - **Row checking** (`CheckedItems`) — toggle by click or key (`ToggleCheckedKey`), checked-row styling, `MarkedItems` as union of checked and selected
-- **436 unit tests** (+ 75 integration) across 41 files
+- **Dark / Light / System theme** — `Theme` DP (`GridTheme` enum); VS Code-inspired dark palette; System reacts live to Windows `AppsUseLightTheme`; user-set brush values always override the theme
+- **454 unit tests** (+ 75 integration) across 43 files
 
 ## Requirements
 
@@ -120,7 +121,8 @@ All columns share common DPs: `Header`, `BindingPath`, `Width`, `MinWidth`, `Max
 | `CellBackgroundBindingPath`* | `string` | — | Path to `Brush` — per-cell color |
 | `SelectedColumn` | `string` | — | Default column focus on first keyboard focus (Cell mode) |
 | `AutoScrollToSelectedItem` | `bool` | `true` | Scroll to SelectedItem when the VM changes it |
-| `AllowColumnReorder` | `bool` | `false` | Allows column reordering via header drag & drop |
+| `Theme` | `GridTheme` | `Light` | Visual theme: `Light`, `Dark`, or `System` (follows Windows) |
+| `AllowColumnReorder` | `bool` | `true` | Allows column reordering via header drag & drop |
 | `CheckedItems` | `IList` | — | Collection of checked rows (VM provides `ObservableCollection<T>`); required for toggle to work |
 | `ToggleCheckedKey` | `Key` | `Key.None` | Key to toggle checked state; `Key.None` = disabled |
 | `CheckedRowBackground` / `CheckedRowForeground` | `Brush` | — | Visual style for checked rows |
@@ -178,7 +180,7 @@ Property access via **Fasterflect** — compiled IL delegates (~10× faster than
 
 ## Demo Application
 
-`Open.DataGrid.Demo` generates **1,000,000 rows** of `SampleRow` (40 typed properties) on a background thread. Every 10th row is read-only; every 100th has a yellow background. Demonstrates all column types, filters, sorting, and the loading overlay.
+`Open.DataGrid.Demo` generates **1,000,000 rows** of `SampleRow` (40 typed properties) on a background thread. Every 10th row is read-only; every 100th has a yellow background. Demonstrates all column types, filters, sorting, loading overlay, and a Light/Dark/System theme switcher.
 
 ## Building
 
