@@ -94,12 +94,15 @@ namespace Open.DataGrid.Demo.ViewModels
             RaisePropertyChanged(nameof(HighlightColBackground));
             RaisePropertyChanged(nameof(SecondaryColBackground));
             RaisePropertyChanged(nameof(TertiaryColBackground));
+            RaisePropertyChanged(nameof(RowBackgroundSelector));
         }
 
         // Frozen dark-mode column backgrounds — allocated once, shared across all accesses.
-        private static readonly Brush _highlightDark  = FreezeBrush(Color.FromRgb(0x28, 0x27, 0x1E));
-        private static readonly Brush _secondaryDark  = FreezeBrush(Color.FromRgb(0x1E, 0x28, 0x28));
-        private static readonly Brush _tertiaryDark   = FreezeBrush(Color.FromRgb(0x24, 0x22, 0x2E));
+        private static readonly Brush _highlightDark     = FreezeBrush(Color.FromRgb(0x28, 0x27, 0x1E));
+        private static readonly Brush _secondaryDark     = FreezeBrush(Color.FromRgb(0x1E, 0x28, 0x28));
+        private static readonly Brush _tertiaryDark      = FreezeBrush(Color.FromRgb(0x24, 0x22, 0x2E));
+        private static readonly Brush _rowAmountHighDark = FreezeBrush(Color.FromRgb(0x3A, 0x20, 0x20)); // dark rose — for rows with high Amount
+        private static readonly Brush _rowAmountLowDark  = FreezeBrush(Color.FromRgb(0x17, 0x2E, 0x2E)); // dark cyan — for rows with low Amount
 
         private static Brush FreezeBrush(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
@@ -142,14 +145,14 @@ namespace Open.DataGrid.Demo.ViewModels
 
         /// <summary>
         /// VM-level row color selector — evaluated once per row during virtualization Bind().
-        /// Returns MistyRose for expensive rows, LightCyan for cheap rows,
-        /// null to fall back to the model's RowColor property.
+        /// Returns theme-adaptive backgrounds: dark tints in dark mode, light pastels in light mode.
+        /// Raising PropertyChanged on this property causes the grid to rebuild its color resolver.
         /// </summary>
-        public Func<object, Brush> RowBackgroundSelector { get; } = item =>
+        public Func<object, Brush> RowBackgroundSelector => item =>
         {
             var row = (SampleRow)item;
-            if (row.Amount > 800m) return Brushes.MistyRose;
-            if (row.Amount < 50m)  return Brushes.LightCyan;
+            if (row.Amount > 800m) return IsEffectivelyDark ? _rowAmountHighDark : Brushes.MistyRose;
+            if (row.Amount < 50m)  return IsEffectivelyDark ? _rowAmountLowDark  : Brushes.LightCyan;
             return null;
         };
 

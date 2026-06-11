@@ -1284,9 +1284,17 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
         private static void OnRowBackgroundSelectorChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             var grid = (OpenDataGrid)d;
-            if (grid._lifecycle.CanHandleInput)
-                grid.BuildPropertyAccessors();
-            // Intentionally no pool refresh — color is computed during row Bind().
+            if (!grid._lifecycle.CanHandleInput) return;
+            grid.BuildPropertyAccessors();
+            // Push the freshly built resolver to all pooled rows so visible rows
+            // update immediately — without requiring a scroll to trigger Bind().
+            grid._rowEngine.UpdateRowBrushes(
+                grid.SelectionBrush,
+                grid.RowBackground ?? Rendering.ThemePalette.Light.RowBackground,
+                grid._rowColorResolver,
+                grid.Foreground,
+                grid.SelectionForeground,
+                grid.AlternateRowShift);
         }
 
         private void TryInitialize()
@@ -1577,10 +1585,14 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
                 Brush lastBase = null, lastAlt = null;
                 _rowColorResolver = (dataIndex, item) =>
                 {
-                    var baseBrush = selectorOrPath(item) ?? rowBg;
+                    var perRowBrush = selectorOrPath(item);        // null = row has no specific colour
+                    var baseBrush   = perRowBrush ?? rowBg;
                     if (dataIndex % 2 != 0)
                     {
-                        if (explicitAlt != null) return explicitAlt;
+                        // Apply alternate-row logic only to rows without a per-row colour.
+                        // When a row has its own colour (selector returned non-null), preserve it
+                        // and apply a shift if configured — don't replace it with explicitAlt.
+                        if (perRowBrush == null && explicitAlt != null) return explicitAlt;
                         if (shift <= 0.0) return baseBrush;
                         if (!ReferenceEquals(baseBrush, lastBase))
                         {
