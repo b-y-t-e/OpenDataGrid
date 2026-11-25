@@ -48,10 +48,19 @@ namespace Open.DataGrid.Controls
         private Brush           _cachedSelectionForeground;
         private Brush           _cachedFocusSelectionBrush;  // for cache invalidation
 
+        // ── Cell range selection ──────────────────────────────────────────────
+        private bool  _isInRange;
+        private Brush _rangeBrush;
+        private Brush _cachedRangeForeground;
+        private Brush _cachedRangeForegroundSource;              // for cache invalidation
+
         public OpenDataGridColumn Column { get; private set; }
         public int ColumnIndex { get; private set; }
         public bool IsInEditMode { get; private set; }
         public bool IsFocusedCell { get; private set; }
+
+        /// <summary><c>true</c> when the cell lies inside a selected cell range.</summary>
+        public bool IsInRange => _isInRange;
 
         // Stores the raw value while in display mode so we can recover it on cancel
         private object _currentValue;
@@ -161,6 +170,18 @@ namespace Open.DataGrid.Controls
         }
 
 
+        /// <summary>
+        /// Marks the cell as inside / outside a selected cell range. Triggers a visual refresh only
+        /// when something changed, so re-applying the same state to every visible row is cheap.
+        /// </summary>
+        public void SetInRange(bool inRange, Brush rangeBrush)
+        {
+            if (_isInRange == inRange && (!inRange || ReferenceEquals(_rangeBrush, rangeBrush))) return;
+            _isInRange  = inRange;
+            _rangeBrush = inRange ? rangeBrush : null;
+            ApplyBackground();
+        }
+
         // ── Core background + foreground resolver ─────────────────────────────
 
         private void ApplyBackground()
@@ -184,7 +205,7 @@ namespace Open.DataGrid.Controls
 
                 // Checked background sits between selection and column layers.
                 // Only applied when row is checked but NOT selected (selection always wins over checked).
-                if (_isRowChecked && !_isRowSelected && _checkedRowBackground != null)
+                if (_isRowChecked && !_isRowSelected && !_isInRange && _checkedRowBackground != null)
                 {
                     resolvedBg    = _checkedRowBackground;
                     Background    = resolvedBg;
@@ -203,11 +224,13 @@ namespace Open.DataGrid.Controls
                         isCellFocused:             false,
                         isAlternateRow:            _isAlternateRow,
                         alternateRowShift:         _alternateRowShift,
-                        columnAlternateBackground: Column.GetAlternateBackground(_alternateRowShift));
+                        columnAlternateBackground: Column.GetAlternateBackground(_alternateRowShift),
+                        isInRange:                 _isInRange,
+                        rangeBrush:                _rangeBrush);
 
                     resolvedBg    = CellBackgroundResolver.Resolve(in ctx);
                     Background    = resolvedBg;
-                    isHighlighted = _isRowSelected;
+                    isHighlighted = _isRowSelected || (_isInRange && _rangeBrush != null);
                 }
             }
 
@@ -219,7 +242,12 @@ namespace Open.DataGrid.Controls
             if (isHighlighted)
             {
                 EnsureSelectionVisuals();
-                Foreground = IsFocusedCell ? _cachedFocusForeground : _cachedSelectionForeground;
+                if (IsFocusedCell)
+                    Foreground = _cachedFocusForeground;
+                else if (_isInRange && _rangeBrush != null)
+                    Foreground = GetRangeForeground();
+                else
+                    Foreground = _cachedSelectionForeground;
                 return;
             }
 
@@ -246,6 +274,17 @@ namespace Open.DataGrid.Controls
                 _cachedFocusForeground      = _selectionForeground ?? BrushShift.ComputeForegroundBrush(_cachedFocusBrush);
                 _cachedSelectionForeground  = _selectionForeground ?? BrushShift.ComputeForegroundBrush(_selectionBrush);
             }
+        }
+
+        private Brush GetRangeForeground()
+        {
+            if (_selectionForeground != null) return _selectionForeground;
+            if (!ReferenceEquals(_cachedRangeForegroundSource, _rangeBrush) || _cachedRangeForeground == null)
+            {
+                _cachedRangeForegroundSource = _rangeBrush;
+                _cachedRangeForeground       = CellForegroundResolver.Resolve(_rangeBrush, isHighlighted: true, columnForeground: null, gridForeground: null);
+            }
+            return _cachedRangeForeground;
         }
 
         // ── Font ──────────────────────────────────────────────────────────────

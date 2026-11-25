@@ -110,6 +110,12 @@ namespace Open.DataGrid.Tests.Helpers
         public void Unbind() { }
         public void SetCellFocus(int colIndex, bool showFocus) { }
         public void SetGridFocus(bool isGridFocused) { }
+
+        /// <summary>Last range highlight applied (sorted index; -1 = cleared).</summary>
+        public int RangeHighlightSortedIndex { get; private set; } = -1;
+
+        public void SetRangeHighlight(int sortedIndex, Func<int, int, bool> contains, Brush rangeBrush)
+            => RangeHighlightSortedIndex = contains == null ? -1 : sortedIndex;
         public void UpdateDefaultCellFont(FontFamily fontFamily, double? fontSize, FontWeight? fontWeight) { }
         public void InvalidateCellFont(int colIndex) { }
         public void SetGridLinePen(Pen pen, Pen verticalPen) { }

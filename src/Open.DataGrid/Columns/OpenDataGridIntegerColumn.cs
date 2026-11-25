@@ -19,6 +19,9 @@ namespace Open.DataGrid.Columns
         protected override string FormatValue(object value) =>
             value?.ToString() ?? string.Empty;
 
+        internal override Func<object, string> CreateClipboardFormatter()
+            => value => value?.ToString() ?? string.Empty;
+
         protected override bool ValidateInput(string candidate)
         {
             if (candidate == "-") return true;

@@ -72,6 +72,12 @@ namespace Open.DataGrid.Virtualization
         /// <summary>Updates the grid keyboard-focus state for this row.</summary>
         void SetGridFocus(bool isGridFocused);
 
+        /// <summary>
+        /// Highlights the cells inside a selected cell range. <paramref name="sortedIndex"/> is the
+        /// row's visual position; <c>-1</c> or a null <paramref name="contains"/> clears the highlight.
+        /// </summary>
+        void SetRangeHighlight(int sortedIndex, Func<int, int, bool> contains, Brush rangeBrush);
+
         /// <summary>Updates default cell font settings for all cells in the row slot.</summary>
         void UpdateDefaultCellFont(FontFamily fontFamily, double? fontSize, FontWeight? fontWeight);
 

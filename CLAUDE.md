@@ -10,7 +10,7 @@ OpenDataGrid.slnx
 src/
 ├── Open.DataGrid/          # Control library
 ├── Open.DataGrid.Demo/     # Test application (MVVMLight, 1,000,000 rows)
-└── Open.DataGrid.Tests/    # Unit tests (NUnit 3, 451 unit + 75 integration = 526 total)
+└── Open.DataGrid.Tests/    # Unit tests (NUnit 3, 664 tests)
 ```
 
 ---
@@ -279,6 +279,7 @@ Priority logic is centralized in `src/Open.DataGrid/Rendering/CellBackgroundReso
 | Priority | Layer | Source |
 |---|---|---|
 | 1 | **Focused cell brush** | `Cell.SetFocused` — lighter/darker variant of `SelectionBrush` (via `BrushShift.ComputeFocusBrush`) |
+| 1a | **Range brush** | cell inside a selected cell range (`Cell.SetInRange`): `RangeSelectionBrush` ?? `BrushShift.Blend(RowBackground, SelectionBrush, 0.45)`; wins over the row selection and the checked-row background; text = `SelectionForeground` ?? auto-contrast |
 | 2 | **Row SelectionBrush** | when `IsRowSelected` — always visible, even in columns with `Column.Background` |
 | 3 | **Column.Background** | `Column.Background` DP, when `BackgroundOverridesData == true` (default) |
 | 4 | **CellBackgroundBindingPath** | path to `Brush` on the data object (per cell) |
@@ -305,6 +306,14 @@ Rendering helper classes:
 - **Cell** — additionally Left/Right/Tab/Shift+Tab, F2 = enter edit mode
 - **Home/End** (no Ctrl) — Cell mode: first/last visible column (row kept); Row mode: first/last row. Ctrl+Home/End always = first/last row (column kept). In edit mode Home/End stay with the editor (caret).
 - **Ctrl+C / Ctrl+Shift+C** (outside edit mode, DP `AllowCopy`, default `true`) — Cell mode: the focused cell; Row mode: all visible columns of the focused row, tab-separated (pastes into separate Excel cells). Text = what the cell displays (`Column.GetClipboardText`, overridden per column type: numeric/date/time formats, combo display text, check/boolean = True/False). Shift adds a header line. Fields containing tab/newline/quote are quoted Excel-style. Public API `GetCopyText(includeHeaders)` / `CopyToClipboard(includeHeaders)`; a locked clipboard returns `false`. Tests replace the internal `ClipboardWriter` so they never touch the real clipboard. In edit mode Ctrl+C stays with the editor.
+- **Cell range selection (Excel-like, Cell mode only, DP `AllowRangeSelection`, default `true`)** — logic in `RangeSelectionController` (+ `OpenDataGrid.RangeSelection.cs`).
+  - Mouse: press = active cell + anchor (clears ranges); drag (mouse captured on the canvas) = block anchor..current cell, the active cell stays at the anchor; Ctrl+press/drag = add another block (the previous active cell joins the selection) and move the active cell there; Shift+click = block from the anchor, active cell unchanged. Above/below/left/right of the viewport the drag auto-scrolls (`DispatcherTimer`, 50 ms; `AutoScrollStep`). An info row maps to its owner data row. Header/filter row never start a drag.
+  - In Cell mode with range selection on, the click actions (check column toggle, combo column editor) run on **mouse up** and only when the press did not turn into a drag and had no Ctrl/Shift (`SelectionFocusSynchronizer.RunCellClickAction`). Double-click edit is unchanged (second press, `ClickCount == 2`). Row mode keeps the old press-time behaviour.
+  - Keys (outside edit mode, `TryHandleRangeKey`): Shift+Arrows/Home/End/PageUp/PageDown move the moving corner (Ctrl+Shift = to the edge; the corner is scrolled into view, the active cell stays); Ctrl+A = all rows × visible columns; Escape clears; a plain navigation key (also Tab/Enter) clears the ranges and then navigates as usual.
+  - Model: `CellRange` (`Models/CellRange.cs`, normalized inclusive rows = sorted/visual positions, columns = visible-column indices). Only coordinates are stored — O(1) for 1M rows. A lone single-cell range on the active cell is normalized away (= no range).
+  - Cleared on: sort, filter, data/collection rebuild (`InitializeRowEngine`, `OnCollectionChanged`), column visibility/reorder and DataSource change (`BuildPropertyAccessors`), `NavigationMode` change, `AllowRangeSelection = false`.
+  - API: `SelectedRanges`, `SelectRange(firstRow, firstColumn, lastRow, lastColumn, add)`, `ClearRangeSelection()`, event `RangeSelectionChanged`. Tests drive gestures via internal `BeginRangePointer(row, col, ModifierKeys)` / `UpdateRangePointer` / `EndRangePointer`.
+  - Copy: with ranges, Ctrl+C copies the **bounding box** of all ranges as TSV (cells outside every range = empty fields; Ctrl+Shift+C = header line of the box columns). More than `AsyncCopyCellThreshold` (200 000) cells: built on a background thread (`Task.Run`, loading indicator via `GridWorkCoordinator.BeginWork`) using `Column.CreateThreadSafeClipboardFormatter()` (settings captured on the UI thread; column types from other assemblies return `null` → the copy is built on the UI thread), then written on the UI thread unless a newer copy superseded it (`_copyGeneration`). `GetCopyText` stays synchronous.
 
 Smart edit entry — `column.CanBeginEdit(key)` decides whether a key triggers editing:
 - Letters do **not** enter edit mode for `Decimal` / `Integer` fields
@@ -350,10 +359,12 @@ The `Open.DataGrid.Demo` project uses **GalaSoft MVVMLight** (`MvvmLightLibs 5.4
 | `OpenDataGrid.Scrolling.cs` | `OnVerticalScroll`, `OnHorizontalScroll`, `OnMouseWheel`, `OnCanvasSizeChanged`, `UpdateColumnRange` |
 | `OpenDataGrid.Navigation.cs` | Focus/keyboard handlers, `EnsureRowVisible`, `EnsureColumnVisible`, `ScrollToItem`, `SelectColumn` |
 | `OpenDataGrid.Editing.cs` | `TryBeginEdit`, `CommitEdit`, `CancelEdit`, `LiveEdit` |
-| `OpenDataGrid.Clipboard.cs` | Ctrl+C / Ctrl+Shift+C: `AllowCopy` DP, `GetCopyText`, `CopyToClipboard`, `TryHandleCopyKey(key, modifiers)` |
+| `OpenDataGrid.Clipboard.cs` | Ctrl+C / Ctrl+Shift+C: `AllowCopy` DP, `GetCopyText`, `CopyToClipboard`, `TryHandleCopyKey(key, modifiers)`, range copy (bounding box TSV, background build above `AsyncCopyCellThreshold`) |
+| `OpenDataGrid.RangeSelection.cs` | `AllowRangeSelection` / `RangeSelectionBrush` DPs, `SelectedRanges`, `SelectRange`, `ClearRangeSelection`, `RangeSelectionChanged`, `TryHandleRangeKey`, drag auto-scroll helpers |
+| `RangeSelectionController.cs` | Cell range selection state (ranges, anchor, moving corner), pointer gesture + auto-scroll, Shift-key extension, Ctrl+A, highlight refresh (`RowVirtualizationEngine.SetRangeHighlight` → `IRowSlot.SetRangeHighlight`) |
 | `GridLifecycleState.cs` | Lifecycle state enum: `NoTemplate`, `TemplateReady`, `WaitingForViewport`, `Initializing`, `Ready`, `Unloaded` |
 | `GridLifecycleController.cs` | State machine; guards `CanHandleInput`, `IsInitialized`, `IsUnloaded`, `NeedsViewport`; named transitions; DEBUG log |
-| `SelectionFocusSynchronizer.cs` | `OnCanvasMouseDown`, `SelectByDataIndex`, `ApplyCellFocus`, `InternalSelectionChange` guard, `PendingSelectedItem` |
+| `SelectionFocusSynchronizer.cs` | `OnCanvasMouseDown` (starts a range gesture in Cell mode), `RunCellClickAction`, `SelectByDataIndex`, `ApplyCellFocus`, `InternalSelectionChange` guard, `PendingSelectedItem` |
 | `GridWorkCoordinator.cs` | `BeginPendingWork`/`EndPendingWork`, `NotifyFilterPending`/`NotifyFilterReady`, `WorkToken` RAII, overlay visibility |
 | `HeaderPresenter.cs` | Header cell creation, column resize thumbs, DPD subscriptions, column list cache |
 | `HiddenColumnsTracker.cs` | `HiddenColumns` DP apply logic, incremental visibility updates |
@@ -494,6 +505,9 @@ Beyond the sections above, key grid DPs:
 | `FilterRowBackground` | `Brush` | filter strip bg; default `#FAFAFA`; template-binding |
 | `ChromeBorderBrush` | `Brush` | chrome separator/border colour; default `#CCCCCC`; template-binding |
 | `LoadingOverlayBackground` | `Brush` | loading overlay; default `#30FFFFFF`; template-binding |
+| `AllowCopy` | `bool` (default `true`) | Ctrl+C / Ctrl+Shift+C copying |
+| `AllowRangeSelection` | `bool` (default `true`) | Excel-like cell range selection in Cell mode (drag / Ctrl / Shift / Ctrl+A) |
+| `RangeSelectionBrush` | `Brush` (default `null`) | background of cells in a selected range; `null` = `SelectionBrush` blended into `RowBackground` |
 
 ## Rendering Layer API
 
@@ -513,7 +527,7 @@ When modifying rendering code — to avoid rewriting what already exists:
 
 ## Unit Tests
 
-The `Open.DataGrid.Tests` project (NUnit 3, STA) — **451 unit tests + 75 integration tests = 526 total across 42 files**, covering logic isolated from UI:
+The `Open.DataGrid.Tests` project (NUnit 3, STA) — the runner reports **664 tests** (originally 451 unit + 75 integration = 526 across 42 files; the table below lists the classes), covering logic isolated from UI:
 
 | What is tested | Test class | Count |
 |---|---|---|
@@ -560,6 +574,8 @@ The `Open.DataGrid.Tests` project (NUnit 3, STA) — **451 unit tests + 75 integ
 | TextFilter `KeepFocusOnNavigation` | `TextFilterNavigationForwardTests` | 8 |
 | TextFilter `HorizontalArrowsNavigateGridControls` | `TextFilterTabOnArrowsTests` | 10 |
 | Ctrl+C / Ctrl+Shift+C copy text, quoting, AllowCopy, locked clipboard | `ClipboardCopyTests` | 11 |
+| Cell range selection: drag, Ctrl/Shift, keys, Ctrl+A, clearing triggers, click actions on release, rendering, range copy (bounding box, headers, background build, superseding) | `RangeSelectionTests` | 37 |
+| `CellRange` model, range layer of the background/foreground resolvers | `RangeSelectionRenderingTests` | 12 |
 | DiacriticsHelper — PL/Unicode normalisation, edge cases | `DiacriticsHelperTests` | 22 |
 | CellForegroundResolver — highlight contrast, column/grid fallback | `CellForegroundResolverTests` | 7 |
 | Theme palette sanity, DP apply/revert, user override, System stub | `ThemeTests` | 15 |

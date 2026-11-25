@@ -128,6 +128,7 @@ namespace Open.DataGrid.Controls
 
         // Centralizes selection/focus synchronization. See SelectionFocusSynchronizer.
         internal readonly SelectionFocusSynchronizer _selection;
+        internal readonly RangeSelectionController _rangeSelection;
 
         // Manages header build/layout, column caches, DPD subscriptions, HiddenColumns.
         internal readonly HeaderPresenter _headerPresenter;
@@ -611,6 +612,7 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
         {
             _workCoordinator = new GridWorkCoordinator(() => LoadingIndicatorMode);
             _selection = new SelectionFocusSynchronizer(this);
+            _rangeSelection = new RangeSelectionController(this);
             _headerPresenter = new HeaderPresenter(this);
             _filterRowPresenter = new FilterRowPresenter(this);
             _rowEngine.InfoLayoutInvalidated += OnInfoLayoutInvalidated;
@@ -647,6 +649,9 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
             {
                 _canvas.SizeChanged -= OnCanvasSizeChanged;
                 _canvas.MouseLeftButtonDown -= _selection.OnCanvasMouseDown;
+                _canvas.MouseMove -= _rangeSelection.OnCanvasMouseMove;
+                _canvas.MouseLeftButtonUp -= _rangeSelection.OnCanvasMouseUp;
+                _canvas.LostMouseCapture -= _rangeSelection.OnCanvasLostMouseCapture;
             }
 
             _headerPresenter.DetachVisibilitySubscriptions();
@@ -684,6 +689,9 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
             {
                 _canvas.SizeChanged += OnCanvasSizeChanged;
                 _canvas.MouseLeftButtonDown += _selection.OnCanvasMouseDown;
+                _canvas.MouseMove += _rangeSelection.OnCanvasMouseMove;
+                _canvas.MouseLeftButtonUp += _rangeSelection.OnCanvasMouseUp;
+                _canvas.LostMouseCapture += _rangeSelection.OnCanvasLostMouseCapture;
             }
 
             _sortEngine.SortCompleted += OnSortCompleted;
@@ -732,6 +740,7 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
             _filterCts = null;
             // Cancel any in-progress background sort so it does not publish stale results after unload.
             _sortEngine.CancelPendingSort();
+            _rangeSelection.CancelPointer();
             _workCoordinator.Reset();
             // Reset so SelectedColumn DP is re-applied on first keyboard focus after reload.
             // Without this the grid would remember "focus was already established" from the
@@ -873,6 +882,18 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
             if (item == null) return false;
             if (CheckedItems != null) return _checkedSet.Contains(item);
             return _boundCheckGetter?.Invoke(item) ?? false;
+        }
+
+        /// <summary>
+        /// Snapshot of <see cref="IsItemChecked"/> that does not read dependency properties, so it can
+        /// run on a background thread (large clipboard copies). Reads the live checked set.
+        /// </summary>
+        internal Func<object, bool> CreateThreadSafeCheckedAccessor()
+        {
+            bool useSet = CheckedItems != null;
+            var  set    = _checkedSet;
+            var  bound  = _boundCheckGetter;
+            return item => item != null && (useSet ? set.Contains(item) : bound?.Invoke(item) ?? false);
         }
 
         private bool DataSourceContains(object item)
@@ -1154,6 +1175,7 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
 
             var newMode = (NavigationMode)e.NewValue;
             grid._navEngine.UpdateMode(newMode);
+            grid._rangeSelection.Clear();   // ranges exist only in Cell mode
 
             // Re-apply focus so the row engine reflects the new mode (cell border vs row border).
             if (grid.FocusedRowSortedIndex >= 0)
@@ -1332,6 +1354,7 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
                     Foreground,
                     SelectionForeground,
                     AlternateRowShift);
+                _rangeSelection.RefreshHighlight();   // auto range brush follows the theme
                 // Refresh filter row cell backgrounds (reads RowBackground / HeaderBackground).
                 _filterRowPresenter.UpdateRowBackground();
             }
@@ -1569,6 +1592,8 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
 
         internal void BuildPropertyAccessors()
         {
+            // Visible columns or the data source changed — column indices of ranges are stale.
+            _rangeSelection.Clear();
             var columns = GetVisibleColumnList();
             int count = columns.Count;
             _propertyGetters = new Func<object, object>[count];
@@ -1870,6 +1895,18 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
         internal void InitializeRowEngine()
         {
             if (_canvas == null) return;
+            // The view is rebuilt (sort, filter, data, columns) — positional ranges no longer apply.
+            _rangeSelection.Clear();
+            RebuildRowPool();
+        }
+
+        /// <summary>
+        /// Rebuilds the row pool for the current view, keeping the range selection untouched — for
+        /// style-only rebuilds that move no row or column. Re-apply the highlight afterwards.
+        /// </summary>
+        private void RebuildRowPool()
+        {
+            if (_canvas == null) return;
             var columns = GetVisibleColumnList();
             if (columns.Count == 0) return;
 
@@ -1957,7 +1994,10 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
             // info flags survive (no O(n) rescan of the data source).
             if (e.Property == InfoRowBindingPathProperty)
                 grid.BuildPropertyAccessors();
-            grid.InitializeRowEngine();
+            // Rows and columns keep their positions here (a path change already cleared the ranges
+            // in BuildPropertyAccessors), so a style-only change — e.g. a theme switch — keeps them.
+            grid.RebuildRowPool();
+            grid._rangeSelection.RefreshHighlight();
             // Page step depends on whether any info rows exist.
             grid._navEngine.UpdateStats(grid.EffectiveRowCount, grid.GetNavigationVisibleRows());
             grid.ScrollToSortedTop(anchorSorted);
@@ -2166,6 +2206,7 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
                     var prevDirection = _sortEngine.CurrentDirection;
 
                     BuildSortEngineSync();
+                    _rangeSelection.Clear();   // row positions changed
 
                     if (prevColumn != null && prevDirection != Models.SortDirection.None)
                     {

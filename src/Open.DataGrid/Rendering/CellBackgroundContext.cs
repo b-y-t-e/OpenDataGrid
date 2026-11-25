@@ -44,6 +44,12 @@ namespace Open.DataGrid.Rendering
         /// </summary>
         public readonly Brush ColumnAlternateBackground;
 
+        /// <summary>Whether the cell lies inside a selected cell range (drag / Shift / Ctrl / Ctrl+A).</summary>
+        public readonly bool IsInRange;
+
+        /// <summary>Highlight brush for cells inside a selected range. Used only when <see cref="IsInRange"/>.</summary>
+        public readonly Brush RangeBrush;
+
         public CellBackgroundContext(
             Brush  focusCellBrush,
             Brush  selectionBrush,
@@ -55,7 +61,9 @@ namespace Open.DataGrid.Rendering
             bool   isCellFocused,
             bool   isAlternateRow,
             double alternateRowShift,
-            Brush  columnAlternateBackground)
+            Brush  columnAlternateBackground,
+            bool   isInRange = false,
+            Brush  rangeBrush = null)
         {
             FocusCellBrush            = focusCellBrush;
             SelectionBrush            = selectionBrush;
@@ -68,6 +76,8 @@ namespace Open.DataGrid.Rendering
             IsAlternateRow            = isAlternateRow;
             AlternateRowShift         = alternateRowShift;
             ColumnAlternateBackground = columnAlternateBackground;
+            IsInRange                 = isInRange;
+            RangeBrush                = rangeBrush;
         }
     }
 }

@@ -105,6 +105,9 @@ namespace Open.DataGrid.Columns
 
         public override string GetClipboardText(object value) => GetDisplayText(value);
 
+        // The lookup cache is only read here; it is rebuilt on the UI thread when ItemsSource changes.
+        internal override Func<object, string> CreateClipboardFormatter() => GetDisplayText;
+
         public override void ApplyEditValue(FrameworkElement element, object value)
         {
             if (element is ComboBox combo)

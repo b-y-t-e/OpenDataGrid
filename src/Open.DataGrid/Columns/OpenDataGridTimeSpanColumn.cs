@@ -52,6 +52,13 @@ namespace Open.DataGrid.Columns
 
         public override string GetClipboardText(object value) => FormatValue(value);
 
+        internal override Func<object, string> CreateClipboardFormatter()
+        {
+            var format  = TimeFormat;
+            var culture = System.Globalization.CultureInfo.CurrentCulture;
+            return value => value is TimeSpan ts ? ts.ToString(format, culture) : value?.ToString() ?? string.Empty;
+        }
+
         public override void ApplyEditValue(FrameworkElement element, object value)
         {
             if (element is TextBox tb)

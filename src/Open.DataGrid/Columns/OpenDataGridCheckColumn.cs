@@ -83,6 +83,14 @@ namespace Open.DataGrid.Columns
         public override string GetClipboardText(object value)
             => (!string.IsNullOrEmpty(BindingPath) ? ToBool(value) : _owningGrid?.IsItemChecked(value) ?? false).ToString();
 
+        internal override Func<object, string> CreateClipboardFormatter()
+        {
+            bool bound = !string.IsNullOrEmpty(BindingPath);
+            // Unbound mode reads the grid's checked set (a lookup only; toggles happen on the UI thread).
+            var isChecked = _owningGrid?.CreateThreadSafeCheckedAccessor();
+            return value => (bound ? ToBool(value) : isChecked?.Invoke(value) ?? false).ToString();
+        }
+
         internal static bool ToBool(object value)
         {
             if (value is bool b) return b;

@@ -41,6 +41,12 @@ namespace Open.DataGrid.Controls
                 return;
             }
 
+            if (TryHandleRangeKey(e.Key, Keyboard.Modifiers))
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key == Key.Enter && !_navEngine.IsEditing && TryExecuteEnterCommand())
             {
                 e.Handled = true;

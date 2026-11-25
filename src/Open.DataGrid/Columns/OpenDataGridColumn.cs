@@ -322,6 +322,24 @@ namespace Open.DataGrid.Columns
         public virtual string GetClipboardText(object value)
             => string.IsNullOrEmpty(BindingPath) ? string.Empty : value?.ToString() ?? string.Empty;
 
+        /// <summary>
+        /// A formatter equivalent to <see cref="GetClipboardText"/> that captures the column's settings
+        /// now (on the UI thread) and is therefore safe to run on a background thread — used to build
+        /// large clipboard copies off the UI thread. Returns <c>null</c> for column types defined
+        /// outside this library (their <see cref="GetClipboardText"/> may read dependency properties),
+        /// in which case the copy is built on the UI thread.
+        /// </summary>
+        internal Func<object, string> CreateThreadSafeClipboardFormatter()
+            => GetType().Assembly == typeof(OpenDataGridColumn).Assembly ? CreateClipboardFormatter() : null;
+
+        /// <summary>Background-safe <see cref="GetClipboardText"/>; built-in columns override it to capture their settings.</summary>
+        internal virtual Func<object, string> CreateClipboardFormatter()
+        {
+            bool hasPath = !string.IsNullOrEmpty(BindingPath);
+            var culture  = System.Globalization.CultureInfo.CurrentCulture;
+            return value => hasPath && value != null ? Convert.ToString(value, culture) ?? string.Empty : string.Empty;
+        }
+
         /// <summary>Sets the edit element's content from the raw value.</summary>
         public abstract void ApplyEditValue(FrameworkElement element, object value);
 

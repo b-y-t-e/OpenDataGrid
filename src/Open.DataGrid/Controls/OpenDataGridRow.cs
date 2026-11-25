@@ -74,6 +74,9 @@ namespace Open.DataGrid.Controls
         private Brush            _infoOwnerBackground;
         private bool             _hasInfoRowBelow;
 
+        // Cell range selection: true while at least one cell of this row is highlighted.
+        private bool _hasRangeCells;
+
         public bool IsInfoRow { get; private set; }
         public int  InfoOwnerDataIndex { get; private set; } = -1;
         internal InfoRowStyle InfoStyle => _infoStyle;
@@ -257,6 +260,7 @@ if (_gridLinePen == null
             }
 
             UpdateBackground(false);
+            SetRangeHighlight(-1, null, null);
 
             for (int i = 0; i < _columnCount; i++)
             {
@@ -407,6 +411,7 @@ if (_gridLinePen == null
         {
             SubscribeTo(ownerItem);
             SetCellFocus(-1, false);
+            SetRangeHighlight(-1, null, null);
             UpdateCheckedState(false);
 
             bool enteringInfoMode = !IsInfoRow;
@@ -511,6 +516,33 @@ if (_gridLinePen == null
 
             _focusedCellIndex = colIndex;
             _cells[colIndex].SetFocused(true);
+        }
+
+        /// <summary>
+        /// Highlights the cells of this row that lie inside a selected cell range.
+        /// <paramref name="sortedIndex"/> is the row's visual position; pass <c>-1</c> or a null
+        /// <paramref name="contains"/> to clear. Only cells whose state changes are repainted.
+        /// </summary>
+        public void SetRangeHighlight(int sortedIndex, Func<int, int, bool> contains, Brush rangeBrush)
+        {
+            if (_cells == null) return;
+            if (contains == null || sortedIndex < 0 || IsInfoRow)
+            {
+                if (!_hasRangeCells) return;
+                for (int i = 0; i < _columnCount; i++)
+                    _cells[i].SetInRange(false, null);
+                _hasRangeCells = false;
+                return;
+            }
+
+            bool any = false;
+            for (int i = 0; i < _columnCount; i++)
+            {
+                bool inRange = contains(sortedIndex, i);
+                _cells[i].SetInRange(inRange, rangeBrush);
+                any |= inRange;
+            }
+            _hasRangeCells = any;
         }
 
         /// <summary>Updates the grid keyboard-focus state for this row.</summary>

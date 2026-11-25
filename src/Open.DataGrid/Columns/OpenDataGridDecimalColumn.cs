@@ -44,20 +44,32 @@ namespace Open.DataGrid.Columns
         public bool EmptyWhenZero { get => (bool)GetValue(EmptyWhenZeroProperty); set => SetValue(EmptyWhenZeroProperty, value); }
 
         protected override string FormatValue(object value)
+            => FormatDecimal(value, EmptyWhenZero, DecimalPlaces, TrimTrailingZeros, CultureInfo.CurrentCulture);
+
+        internal override Func<object, string> CreateClipboardFormatter()
+        {
+            bool emptyWhenZero = EmptyWhenZero;
+            int  decimalPlaces = DecimalPlaces;
+            bool trimZeros     = TrimTrailingZeros;
+            var  culture       = CultureInfo.CurrentCulture;
+            return value => FormatDecimal(value, emptyWhenZero, decimalPlaces, trimZeros, culture);
+        }
+
+        private static string FormatDecimal(object value, bool emptyWhenZero, int decimalPlaces, bool trimZeros, CultureInfo culture)
         {
             if (!(value is decimal d))
                 return value?.ToString() ?? string.Empty;
 
-            if (EmptyWhenZero && d == 0m)
+            if (emptyWhenZero && d == 0m)
                 return string.Empty;
 
-            var text = d.ToString("N" + DecimalPlaces);
-            return TrimTrailingZeros ? TrimZeros(text) : text;
+            var text = d.ToString("N" + decimalPlaces, culture);
+            return trimZeros ? TrimZeros(text, culture) : text;
         }
 
-        private static string TrimZeros(string text)
+        private static string TrimZeros(string text, CultureInfo culture)
         {
-            var sep = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+            var sep = culture.NumberFormat.NumberDecimalSeparator;
             int sepPos = text.IndexOf(sep, StringComparison.Ordinal);
             if (sepPos < 0)
                 return text; // no fractional part

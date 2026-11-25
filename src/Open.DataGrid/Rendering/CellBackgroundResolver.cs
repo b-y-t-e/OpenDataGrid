@@ -7,6 +7,7 @@ namespace Open.DataGrid.Rendering
     ///
     /// Priority hierarchy (highest to lowest):
     ///   1. Focused cell brush    — when IsCellFocused
+    ///   1a. Range brush          — when the cell lies inside a selected cell range
     ///   2. Row SelectionBrush   — when IsRowSelected
     ///   3. Column.Background    — when set and BackgroundOverridesData == true
     ///   4. CellBackgroundPath   — data-bound brush per cell
@@ -25,6 +26,10 @@ namespace Open.DataGrid.Rendering
             // Layer 1: focused cell wins over everything
             if (ctx.IsCellFocused && ctx.FocusCellBrush != null)
                 return ctx.FocusCellBrush;
+
+            // Layer 1a: selected cell range wins over the row selection and everything below
+            if (ctx.IsInRange && ctx.RangeBrush != null)
+                return ctx.RangeBrush;
 
             // Layer 2: row selection wins over column/data backgrounds
             if (ctx.IsRowSelected && ctx.SelectionBrush != null)

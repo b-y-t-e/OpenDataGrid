@@ -62,6 +62,10 @@ namespace Open.DataGrid.Virtualization
         private bool   _isGridFocused;
         private bool   _placeholderActive;
 
+        // Cell range selection: (sortedIndex, columnIndex) -> inside a selected range. Null = no ranges.
+        private Func<int, int, bool> _rangeContains;
+        private Brush                _rangeBrush;
+
         // Column range
         private double   _hOffset;
         private int      _firstVisibleCol;
@@ -97,6 +101,8 @@ namespace Open.DataGrid.Virtualization
             _columnOffsets   = cfg.ColumnOffsets;
             _infoTextAccessor  = cfg.InfoTextAccessor;
             _placeholderActive = cfg.IsPlaceholderMode && (cfg.SortedIndices?.Length ?? 0) == 0;
+            _rangeContains     = null;   // ranges are positional — a rebuilt view starts without them
+            _rangeBrush        = null;
             BuildLineMap();
 
             RecalculateVisibleRowCounts(cfg.CanvasHeight);
@@ -172,6 +178,28 @@ namespace Open.DataGrid.Virtualization
                     slot.UpdateSelection(false);
                 else if (owner == selectedDataIndex)
                     slot.UpdateSelection(true);
+            }
+        }
+
+        /// <summary>
+        /// Sets the cell-range highlight and re-applies it to every bound data row of the pool
+        /// (only visible rows — cost is independent of the range size). <paramref name="contains"/>
+        /// receives (sortedIndex, columnIndex); null clears the highlight.
+        /// </summary>
+        public void SetRangeHighlight(Func<int, int, bool> contains, Brush rangeBrush)
+        {
+            _rangeContains = contains;
+            _rangeBrush    = rangeBrush;
+            if (!IsInitialized || _pool == null) return;
+
+            for (int i = 0; i < _poolSize; i++)
+            {
+                var slot = _pool.GetRow(i);
+                int logicalIndex = _firstLogicalIndex + i;
+                bool isData = slot.IsVisible && !slot.IsInfoRow && slot.DataIndex >= 0
+                              && logicalIndex >= 0 && logicalIndex < _totalRows;
+                int sortedIndex = isData ? _lines.LineToSorted(logicalIndex) : -1;
+                slot.SetRangeHighlight(sortedIndex, sortedIndex >= 0 ? contains : null, rangeBrush);
             }
         }
 
@@ -457,6 +485,7 @@ namespace Open.DataGrid.Virtualization
             slot.SetCellFocus(
                 dataIndex == _focusedDataIndex ? _focusedColumnIndex : -1,
                 _showCellFocus && dataIndex == _focusedDataIndex);
+            slot.SetRangeHighlight(sortedIndex, _rangeContains, _rangeBrush);
 
             bool hasInfoBelow = _lines.HasInfoLineAfter(logicalIndex);
             slot.SetHasInfoRowBelow(hasInfoBelow);

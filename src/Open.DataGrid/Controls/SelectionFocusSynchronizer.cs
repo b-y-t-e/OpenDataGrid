@@ -125,18 +125,40 @@ namespace Open.DataGrid.Controls
                 }
             }
 
+            // Cell mode with range selection: a press starts a pointer gesture (drag / Ctrl / Shift).
+            // The click actions (check toggle, combo editor) run on release, only if no drag happened.
+            if (_grid.NavigationMode == NavigationMode.Cell && e.ClickCount == 1 && _grid._rangeSelection.IsEnabled)
+            {
+                _grid._rangeSelection.BeginPointer(rowVisualIndex, detectedCol, Keyboard.Modifiers);
+                if (_grid._rangeSelection.IsPointerActive)
+                    _grid._canvas.CaptureMouse();
+                e.Handled = true;
+                return;
+            }
+
             // In Cell mode cell-focus tracks the click; in Row mode keep the current column.
             int clickedCol = _grid.NavigationMode == NavigationMode.Cell
                 ? detectedCol
                 : (_grid.FocusedColIndex >= 0 ? _grid.FocusedColIndex : 0);
 
             ApplyCellFocus(rowVisualIndex, clickedCol, ensureVisible: false);
+            RunCellClickAction(rowVisualIndex, detectedCol, e.ClickCount);
+            e.Handled = true;
+        }
 
-            // CheckColumn toggle — active in both Cell and Row mode; single click only.
-            if (detectedCol >= 0 && detectedCol < columns.Count
-                && columns[detectedCol] is OpenDataGridCheckColumn clickedCheckCol
+        /// <summary>
+        /// Action of a click on a data cell: single click on a check column toggles it (Cell and Row
+        /// mode); in Cell mode a single click on a combo column opens its editor and a double click
+        /// on any other column starts editing.
+        /// </summary>
+        internal void RunCellClickAction(int rowVisualIndex, int colIndex, int clickCount)
+        {
+            var columns = _grid.GetVisibleColumnList();
+            if (colIndex < 0 || colIndex >= columns.Count) return;
+
+            if (columns[colIndex] is OpenDataGridCheckColumn clickedCheckCol
                 && (_grid.CheckedItems != null || !string.IsNullOrEmpty(clickedCheckCol.BindingPath))
-                && e.ClickCount == 1)
+                && clickCount == 1)
             {
                 var sortedIndices = _grid._sortEngine.SortedIndices;
                 if (sortedIndices != null && rowVisualIndex >= 0 && rowVisualIndex < sortedIndices.Length)
@@ -148,13 +170,11 @@ namespace Open.DataGrid.Controls
             }
             else if (_grid.NavigationMode == NavigationMode.Cell)
             {
-                if (columns[detectedCol] is OpenDataGridComboColumn && e.ClickCount == 1)
-                    _grid.TryBeginEdit(rowVisualIndex, detectedCol, Key.F4);
-                else if (e.ClickCount == 2 && !(columns[detectedCol] is OpenDataGridComboColumn))
-                    _grid.TryBeginEdit(rowVisualIndex, detectedCol, Key.F2);
+                if (columns[colIndex] is OpenDataGridComboColumn && clickCount == 1)
+                    _grid.TryBeginEdit(rowVisualIndex, colIndex, Key.F4);
+                else if (clickCount == 2 && !(columns[colIndex] is OpenDataGridComboColumn))
+                    _grid.TryBeginEdit(rowVisualIndex, colIndex, Key.F2);
             }
-
-            e.Handled = true;
         }
 
         // -----------------------------------------------------------------------
@@ -196,6 +216,9 @@ namespace Open.DataGrid.Controls
         /// </summary>
         public void ApplyCellFocus(int sortedRowIndex, int colIndex, bool ensureVisible)
         {
+            if (sortedRowIndex != _grid.FocusedRowSortedIndex || colIndex != _grid.FocusedColIndex)
+                _grid._rangeSelection.OnActiveCellMoving();
+
             _cellFocusApplied = true;
             _grid._navEngine.SetCurrentPosition(sortedRowIndex, colIndex);
             if (!_grid.IsPlaceholderActive)
