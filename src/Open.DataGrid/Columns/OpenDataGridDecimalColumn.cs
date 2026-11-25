@@ -23,6 +23,10 @@ namespace Open.DataGrid.Columns
             DependencyProperty.Register(nameof(TrimTrailingZeros), typeof(bool), typeof(OpenDataGridDecimalColumn),
                 new PropertyMetadata(false));
 
+        public static readonly DependencyProperty EmptyWhenZeroProperty =
+            DependencyProperty.Register(nameof(EmptyWhenZero), typeof(bool), typeof(OpenDataGridDecimalColumn),
+                new PropertyMetadata(false));
+
         public decimal Minimum { get => (decimal)GetValue(MinimumProperty); set => SetValue(MinimumProperty, value); }
         public decimal Maximum { get => (decimal)GetValue(MaximumProperty); set => SetValue(MaximumProperty, value); }
         public int DecimalPlaces { get => (int)GetValue(DecimalPlacesProperty); set => SetValue(DecimalPlacesProperty, value); }
@@ -33,10 +37,19 @@ namespace Open.DataGrid.Columns
         /// </summary>
         public bool TrimTrailingZeros { get => (bool)GetValue(TrimTrailingZerosProperty); set => SetValue(TrimTrailingZerosProperty, value); }
 
+        /// <summary>
+        /// When <c>true</c>, a zero value (0, 0.0, ...) or <c>null</c> is displayed as an empty
+        /// string in display mode. Does not affect edit mode.
+        /// </summary>
+        public bool EmptyWhenZero { get => (bool)GetValue(EmptyWhenZeroProperty); set => SetValue(EmptyWhenZeroProperty, value); }
+
         protected override string FormatValue(object value)
         {
             if (!(value is decimal d))
                 return value?.ToString() ?? string.Empty;
+
+            if (EmptyWhenZero && d == 0m)
+                return string.Empty;
 
             var text = d.ToString("N" + DecimalPlaces);
             return TrimTrailingZeros ? TrimZeros(text) : text;
