@@ -179,6 +179,7 @@ namespace Open.DataGrid.Controls
                 _editingCell      = null;
                 _editingDataIndex = -1;
                 _navEngine.SetEditingState(false);
+                RunInfoLayoutRebuildDeferredByEdit();
                 if (restoreFocus)
                 {
                     _selection.SuppressRestoreColumnOnceForEditExit();
@@ -212,6 +213,7 @@ namespace Open.DataGrid.Controls
                 _editingCell      = null;
                 _editingDataIndex = -1;
                 _navEngine.SetEditingState(false);
+                RunInfoLayoutRebuildDeferredByEdit();
                 _selection.SuppressRestoreColumnOnceForEditExit();
                 Focus();
             }

@@ -34,6 +34,8 @@ namespace Open.DataGrid.Tests.Helpers
 
         public void BindPlaceholder(double hOffset, int firstVisibleCol, int lastVisibleCol)
         {
+            IsInfoRow        = false;
+            InfoOwnerDataIndex = -1;
             DataIndex        = RowVirtualizationEngine.PlaceholderDataIndex;
             DataItem         = null;
             _firstVisibleCol = firstVisibleCol;
@@ -53,9 +55,13 @@ namespace Open.DataGrid.Tests.Helpers
             bool isChecked,
             bool isAlternate)
         {
+            IsInfoRow = false;
+            InfoOwnerDataIndex = -1;
+            InfoText  = null;
             DataIndex = dataIndex;
             DataItem  = dataItem;
             IsAlternate = isAlternate;
+            IsSelected = isSelected;
             _firstVisibleCol = firstVisibleCol;
             _lastVisibleCol  = lastVisibleCol;
             LastRowBrush = rowColorResolver?.Invoke(isAlternate, dataItem);
@@ -63,6 +69,27 @@ namespace Open.DataGrid.Tests.Helpers
             for (int i = firstVisibleCol; i <= lastVisibleCol && i < _columnCount; i++)
                 _values[i] = propertyAccessors[i]?.Invoke(dataItem);
         }
+
+        public bool IsInfoRow { get; private set; }
+        public int InfoOwnerDataIndex { get; private set; } = -1;
+        public string InfoText { get; private set; }
+        public bool IsSelected { get; private set; }
+        public bool HasInfoRowBelow { get; private set; }
+
+        public void BindInfo(int ownerDataIndex, object ownerItem, string text,
+                             Brush ownerRowBackground, bool isOwnerSelected, double hOffset)
+        {
+            IsInfoRow          = true;
+            InfoOwnerDataIndex = ownerDataIndex;
+            InfoText           = text;
+            IsSelected         = isOwnerSelected;
+            LastRowBrush       = ownerRowBackground;
+            HasInfoRowBelow    = false;
+            DataIndex          = RowVirtualizationEngine.InfoRowDataIndex;
+            DataItem           = null;
+        }
+
+        public void SetHasInfoRowBelow(bool hasInfoRowBelow) => HasInfoRowBelow = hasInfoRowBelow;
 
         public void UpdateColumnLayout(double[] widths, double[] offsets, double hOffset, int firstVisibleCol, int lastVisibleCol)
         {
@@ -79,7 +106,7 @@ namespace Open.DataGrid.Tests.Helpers
                 _values[i] = propertyAccessors[i]?.Invoke(DataItem);
         }
 
-        public void UpdateSelection(bool isSelected) { }
+        public void UpdateSelection(bool isSelected) => IsSelected = isSelected;
         public void Unbind() { }
         public void SetCellFocus(int colIndex, bool showFocus) { }
         public void SetGridFocus(bool isGridFocused) { }

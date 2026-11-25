@@ -21,6 +21,9 @@ namespace Open.DataGrid.Virtualization
         /// <summary>Sentinel DataIndex used by placeholder slots (distinct from -1 = "no selection").</summary>
         public const int PlaceholderDataIndex = -2;
 
+        /// <summary>Sentinel DataIndex used by info-row slots (never matches selection / focus / edit lookups).</summary>
+        public const int InfoRowDataIndex = -3;
+
         private readonly RowPool<IRowSlot> _pool = new RowPool<IRowSlot>();
         private IGridCanvas _canvas;
         private Func<int, IRowSlot> _slotFactory;
@@ -34,6 +37,17 @@ namespace Open.DataGrid.Virtualization
         private Brush                  _checkedRowForeground;
         private Brush                  _checkedRowBackground;
         private FontWeight?            _checkedRowFontWeight;
+
+        // Info rows: the engine works in "line" space (data row or the info row below it), see InfoLineMap.
+        private Func<object, string>   _infoTextAccessor;
+        private readonly InfoLineMap   _lines = new InfoLineMap();
+        private bool                   _infoLayoutDirty;
+
+        /// <summary>
+        /// Raised (once until the next rebuild) when a bound item's info text appeared or disappeared,
+        /// i.e. the line map is stale. The owner should call <see cref="RebuildInfoLayout"/>.
+        /// </summary>
+        public event EventHandler InfoLayoutInvalidated;
 
         private double _rowHeight;
         private int    _fullVisibleRowCount;
@@ -81,9 +95,9 @@ namespace Open.DataGrid.Virtualization
             _lastVisibleCol  = cfg.LastVisibleCol;
             _columnWidths    = cfg.ColumnWidths;
             _columnOffsets   = cfg.ColumnOffsets;
-            _totalRows         = cfg.SortedIndices?.Length ?? 0;
-            _placeholderActive = cfg.IsPlaceholderMode && _totalRows == 0;
-            if (_placeholderActive) _totalRows = 1;
+            _infoTextAccessor  = cfg.InfoTextAccessor;
+            _placeholderActive = cfg.IsPlaceholderMode && (cfg.SortedIndices?.Length ?? 0) == 0;
+            BuildLineMap();
 
             RecalculateVisibleRowCounts(cfg.CanvasHeight);
             _poolSize          = _renderVisibleRowCount + 2 * BufferRows;
@@ -153,9 +167,10 @@ namespace Open.DataGrid.Virtualization
             for (int i = 0; i < _poolSize; i++)
             {
                 var slot = _pool.GetRow(i);
-                if (slot.DataIndex == oldSelected)
+                int owner = slot.IsInfoRow ? slot.InfoOwnerDataIndex : slot.DataIndex;
+                if (owner == oldSelected)
                     slot.UpdateSelection(false);
-                else if (slot.DataIndex == selectedDataIndex)
+                else if (owner == selectedDataIndex)
                     slot.UpdateSelection(true);
             }
         }
@@ -400,8 +415,16 @@ namespace Open.DataGrid.Virtualization
                 return;
             }
 
+            int  sortedIndex = logicalIndex;
+            bool isInfoLine  = false;
+            if (_lines.HasInfoRows)
+            {
+                isInfoLine  = _lines.IsInfoLine(logicalIndex);
+                sortedIndex = _lines.LineToSorted(logicalIndex);
+            }
+
             slot.IsVisible = true;
-            int dataIndex = _sortedIndices[logicalIndex];
+            int dataIndex = _sortedIndices[sortedIndex];
             if (dataIndex < 0 || dataIndex >= _dataSource.Count)
             {
                 // _sortedIndices is stale (DataSource shrank but rebuild is still pending on
@@ -411,11 +434,22 @@ namespace Open.DataGrid.Virtualization
             }
             object dataItem   = _dataSource[dataIndex];
             bool   isSelected = (dataIndex == _selectedDataIndex);
-            bool   isChecked  = _isCheckedAccessor?.Invoke(dataItem) ?? false;
 
-            // Zebra striping follows the visual position (logicalIndex), not the raw data index,
-            // so alternating colors stay consistent after filtering / sorting reorders the rows.
-            bool isAlternate = logicalIndex % 2 != 0;
+            // Zebra striping follows the visual position of the data row (sortedIndex), not the raw
+            // data index nor the line — colors stay consistent after filter / sort and info rows
+            // do not shift the stripes.
+            bool isAlternate = sortedIndex % 2 != 0;
+
+            if (isInfoLine)
+            {
+                string text = _infoTextAccessor?.Invoke(dataItem);
+                if (string.IsNullOrEmpty(text)) InvalidateInfoLayout();
+                slot.BindInfo(dataIndex, dataItem, text,
+                              _rowColorResolver?.Invoke(isAlternate, dataItem), isSelected, _hOffset);
+                return;
+            }
+
+            bool isChecked = _isCheckedAccessor?.Invoke(dataItem) ?? false;
 
             slot.Bind(dataIndex, dataItem, _propertyAccessors, _cellBrushAccessors,
                       _rowColorResolver, _hOffset, _firstVisibleCol, _lastVisibleCol, isSelected, isChecked, isAlternate);
@@ -423,6 +457,14 @@ namespace Open.DataGrid.Virtualization
             slot.SetCellFocus(
                 dataIndex == _focusedDataIndex ? _focusedColumnIndex : -1,
                 _showCellFocus && dataIndex == _focusedDataIndex);
+
+            bool hasInfoBelow = _lines.HasInfoLineAfter(logicalIndex);
+            slot.SetHasInfoRowBelow(hasInfoBelow);
+            // Detect info text that appeared / disappeared since the line map was built
+            // (models without INotifyPropertyChanged, or items changed while scrolled out of view).
+            if (_infoTextAccessor != null
+                && hasInfoBelow == string.IsNullOrEmpty(_infoTextAccessor(dataItem)))
+                InvalidateInfoLayout();
         }
 
         private void RepositionSlots(int firstLogicalIndex, int firstVisibleIndex)
@@ -478,6 +520,19 @@ namespace Open.DataGrid.Virtualization
         public int GetFirstVisibleIndex() => _firstLogicalIndex + BufferRows;
         public int GetVisibleRowCount()   => _fullVisibleRowCount;
 
+        /// <summary>
+        /// Data rows guaranteed to fit in the viewport (page step for navigation). Every data row takes
+        /// at most two lines (itself + its info row), so with info rows present half the lines always fit.
+        /// </summary>
+        public int GetVisibleDataRowCount() => HasInfoRows ? _fullVisibleRowCount / 2 : _fullVisibleRowCount;
+
+        /// <summary>True when <paramref name="line"/> lies within the fully visible part of the viewport.</summary>
+        public bool IsLineFullyVisible(int line)
+        {
+            int firstVisible = GetFirstVisibleIndex();
+            return line >= firstVisible && line <= firstVisible + _fullVisibleRowCount - 1;
+        }
+
         public int GetMaxFirstVisibleIndex()
         {
             if (_totalRows <= 0) return 0;
@@ -499,6 +554,97 @@ namespace Open.DataGrid.Virtualization
 
             bool hasPartialRow = effectiveHeight - (_fullVisibleRowCount * _rowHeight) > 0.0001;
             _renderVisibleRowCount = _fullVisibleRowCount + (hasPartialRow ? 1 : 0);
+        }
+
+        // ── Info rows / line mapping ─────────────────────────────────────────
+
+        /// <summary><c>true</c> when at least one info row is present (line space != sorted space).</summary>
+        public bool HasInfoRows => _lines.HasInfoRows;
+
+        /// <summary>Total number of lines (data rows + info rows) — the scroll range unit.</summary>
+        public int TotalLines => _totalRows;
+
+        public int SortedToLine(int sortedIndex) => _lines.SortedToLine(sortedIndex);
+        public int LineToSorted(int line) => _lines.LineToSorted(line);
+        public bool IsInfoLine(int line) => _lines.IsInfoLine(line);
+        public int GetLastLineOfSorted(int sortedIndex) => _lines.GetLastLineOfSorted(sortedIndex);
+
+        /// <summary>
+        /// Sorted index of the first data row starting at or below the first visible line.
+        /// When the top line is an info row its owner is scrolled out — the next row is returned.
+        /// </summary>
+        public int GetFirstVisibleSortedIndex()
+        {
+            int line = GetFirstVisibleIndex();
+            if (!IsInfoLine(line)) return LineToSorted(line);
+            int next  = LineToSorted(line) + 1;
+            int count = _sortedIndices?.Length ?? 0;
+            return next < count ? next : next - 1;
+        }
+
+        /// <summary>
+        /// Rebinds every visible slot (data or info) belonging to <paramref name="item"/>.
+        /// Call when the item's info property changed. A structural change (text appeared /
+        /// disappeared) is detected during rebind and reported through <see cref="InfoLayoutInvalidated"/>.
+        /// </summary>
+        public void RefreshInfoForItem(object item)
+        {
+            if (!IsInitialized || item == null || _infoTextAccessor == null) return;
+            for (int i = 0; i < _poolSize; i++)
+            {
+                var slot = _pool.GetRow(i);
+                if (!slot.IsVisible) continue;
+                bool owns = slot.IsInfoRow
+                    ? slot.InfoOwnerDataIndex >= 0 && slot.InfoOwnerDataIndex < _dataSource.Count
+                      && ReferenceEquals(_dataSource[slot.InfoOwnerDataIndex], item)
+                    : ReferenceEquals(slot.DataItem, item);
+                if (owns) BindSlotAtPoolOffset(i, _firstLogicalIndex + i);
+            }
+        }
+
+        /// <summary>
+        /// Rebuilds the line map (after info rows appeared / disappeared) and re-renders the viewport,
+        /// keeping the first visible data row anchored. Returns the new first visible line.
+        /// </summary>
+        public int RebuildInfoLayout()
+        {
+            if (!IsInitialized) return 0;
+            int anchorLine   = GetFirstVisibleIndex();
+            int anchorSorted = LineToSorted(anchorLine);
+            bool anchorInfo  = IsInfoLine(anchorLine);
+
+            InvalidateInfoCache();
+            BuildLineMap();
+
+            int first = _lines.FirstLineForAnchor(anchorSorted, anchorInfo);
+            first = Math.Max(0, Math.Min(GetMaxFirstVisibleIndex(), first));
+            FullRefresh(first - BufferRows);
+            return first;
+        }
+
+        private void BuildLineMap()
+        {
+            _infoLayoutDirty = false;
+            if (_placeholderActive)
+            {
+                _lines.Build(_dataSource, _sortedIndices, null);
+                _totalRows = 1;
+                return;
+            }
+            _lines.Build(_dataSource, _sortedIndices, _infoTextAccessor);
+            _totalRows = _lines.TotalLines;
+        }
+
+        /// <summary>
+        /// Drops the cached info flags — call when items were added / removed / replaced in the data source.
+        /// </summary>
+        public void InvalidateInfoCache() => _lines.InvalidateInfoCache();
+
+        private void InvalidateInfoLayout()
+        {
+            if (_infoLayoutDirty) return;
+            _infoLayoutDirty = true;
+            InfoLayoutInvalidated?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>Finds the pool slot for a given data index; returns <c>null</c> if not in pool.</summary>

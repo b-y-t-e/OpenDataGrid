@@ -35,6 +35,12 @@ namespace Open.DataGrid.Virtualization
         /// <summary>Returns <c>true</c> when the given data item is in the checked set.</summary>
         public Func<object, bool>           IsCheckedAccessor   { get; set; }
 
+        /// <summary>
+        /// Returns the info-row text for a data item (<c>null</c> / empty = no info row).
+        /// <c>null</c> accessor disables info rows entirely (identity line mapping, zero overhead).
+        /// </summary>
+        public Func<object, string>         InfoTextAccessor    { get; set; }
+
         public Brush                        CheckedRowForeground { get; set; }
         public Brush                        CheckedRowBackground { get; set; }
         public FontWeight?                  CheckedRowFontWeight { get; set; }

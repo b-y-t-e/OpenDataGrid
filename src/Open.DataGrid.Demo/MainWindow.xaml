@@ -138,6 +138,7 @@
             RowBackgroundSelector="{Binding RowBackgroundSelector}"
             RowBackgroundBindingPath="RowColor" SelectedColumn="Price"
             RowReadOnlyBindingPath="IsRowReadOnly"
+            InfoRowBindingPath="PromoInfo"
             ToggleCheckedKey="Space"
             Margin="0">
 

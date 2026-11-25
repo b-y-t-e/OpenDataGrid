@@ -36,6 +36,25 @@ namespace Open.DataGrid.Virtualization
                   bool isChecked,
                   bool isAlternate);
 
+        // ── Info row ─────────────────────────────────────────────────────────
+
+        /// <summary><c>true</c> when the slot currently renders an info row (full-width, non-focusable text line).</summary>
+        bool IsInfoRow { get; }
+
+        /// <summary>Data index of the row owning the info line; <c>-1</c> when the slot is not an info row.</summary>
+        int InfoOwnerDataIndex { get; }
+
+        /// <summary>
+        /// Binds the slot as an info row rendered below the data row <paramref name="ownerDataIndex"/>.
+        /// <see cref="DataIndex"/> becomes <see cref="RowVirtualizationEngine.InfoRowDataIndex"/> and
+        /// <see cref="DataItem"/> becomes <c>null</c>, so selection / focus / edit lookups never match it.
+        /// </summary>
+        void BindInfo(int ownerDataIndex, object ownerItem, string text,
+                      Brush ownerRowBackground, bool isOwnerSelected, double hOffset);
+
+        /// <summary>Tells a data row whether its info row is rendered directly below it (suppresses the separator line).</summary>
+        void SetHasInfoRowBelow(bool hasInfoRowBelow);
+
         void UpdateColumnLayout(double[] widths, double[] offsets,
                                 double hOffset,
                                 int firstVisibleCol, int lastVisibleCol);

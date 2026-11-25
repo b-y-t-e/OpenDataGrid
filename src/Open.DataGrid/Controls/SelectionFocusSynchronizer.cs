@@ -77,6 +77,18 @@ namespace Open.DataGrid.Controls
         // Canvas mouse click  (from OpenDataGrid.Selection.cs)
         // -----------------------------------------------------------------------
 
+        internal int LineAtCanvasY(double canvasY)
+            => (int)(canvasY / _grid.RowHeight) + _grid._rowEngine.GetFirstVisibleIndex();
+
+        /// <summary>Sorted index of the data row rendered at <paramref name="line"/>; -1 for info lines and lines past the data.</summary>
+        internal int DataRowAtLine(int line)
+        {
+            if (_grid._rowEngine.IsInfoLine(line)) return -1;
+            int sortedIndex  = _grid._rowEngine.LineToSorted(line);
+            int totalVisible = _grid.IsPlaceholderActive ? 1 : (_grid._sortEngine.SortedIndices?.Length ?? 0);
+            return sortedIndex >= 0 && sortedIndex < totalVisible ? sortedIndex : -1;
+        }
+
         public void OnCanvasMouseDown(object sender, MouseButtonEventArgs e)
         {
             if (_grid._editingCell != null)
@@ -89,9 +101,14 @@ namespace Open.DataGrid.Controls
 
             _grid.Focus();
             var pos = e.GetPosition(_grid._canvas);
-            int rowVisualIndex = (int)(pos.Y / _grid.RowHeight) + _grid._rowEngine.GetFirstVisibleIndex();
-            int totalVisible = _grid.IsPlaceholderActive ? 1 : (_grid._sortEngine.SortedIndices?.Length ?? 0);
-            if (rowVisualIndex < 0 || rowVisualIndex >= totalVisible) return;
+            int line = LineAtCanvasY(pos.Y);
+            int rowVisualIndex = DataRowAtLine(line);
+            if (rowVisualIndex < 0)
+            {
+                // Info rows are purely informational — a click neither moves focus nor selects the owner.
+                if (_grid._rowEngine.IsInfoLine(line)) e.Handled = true;
+                return;
+            }
 
             var columns = _grid.GetVisibleColumnList();
 
@@ -208,7 +225,7 @@ namespace Open.DataGrid.Controls
             if (!_grid.IsGridInitialized) return;
             if (_grid.SelectedItem == null && _grid.EffectiveRowCount > 0 && !_cellFocusApplied)
             {
-                int firstVisible = _grid._rowEngine.GetFirstVisibleIndex();
+                int firstVisible = _grid._rowEngine.GetFirstVisibleSortedIndex();
                 int col = _grid.FocusedColIndex >= 0 ? _grid.FocusedColIndex : 0;
                 ApplyCellFocus(firstVisible, col, ensureVisible: false);
             }
@@ -413,26 +430,28 @@ namespace Open.DataGrid.Controls
         {
             if (_grid._vScrollBar == null) return;
 
+            // Scroll math works in line space (data rows + info rows). A row with an info row
+            // occupies [firstLine, lastLine]; both lines are brought into view when possible.
+            int firstLine = _grid._rowEngine.SortedToLine(sortedIndex);
+            int lastLine  = _grid._rowEngine.GetLastLineOfSorted(sortedIndex);
             int firstVisible  = _grid._rowEngine.GetFirstVisibleIndex();
             int fullVisibleRows = _grid._rowEngine.GetVisibleRowCount();
             int targetFirstVisible;
 
             if (fullVisibleRows <= 0)
             {
-                targetFirstVisible = sortedIndex;
+                targetFirstVisible = firstLine;
             }
             else
             {
-                int lastFullyVisible = firstVisible + fullVisibleRows - 1;
-
-                if (sortedIndex < firstVisible)
-                    targetFirstVisible = sortedIndex;
-                else if (sortedIndex > lastFullyVisible)
-                    targetFirstVisible = sortedIndex - fullVisibleRows + 1;
+                if (firstLine < firstVisible)
+                    targetFirstVisible = firstLine;
+                else if (!_grid._rowEngine.IsLineFullyVisible(lastLine))
+                    targetFirstVisible = Math.Min(firstLine, lastLine - fullVisibleRows + 1);
                 else
                 {
 #if DEBUG
-                    Debug.WriteLine($"[EDG] EnsureRowVisible: sortedIndex={sortedIndex} already visible [first={firstVisible} last={lastFullyVisible}] — skipping scroll");
+                    Debug.WriteLine($"[EDG] EnsureRowVisible: sortedIndex={sortedIndex} already visible [first={firstVisible}] — skipping scroll");
 #endif
                     return;
                 }

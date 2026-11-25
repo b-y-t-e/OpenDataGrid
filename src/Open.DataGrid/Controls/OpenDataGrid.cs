@@ -111,6 +111,15 @@ namespace Open.DataGrid.Controls
         private int[]                    _checkColumnIndices = Array.Empty<int>();
         private Func<object, bool>       _boundCheckGetter; // non-null only in pure-bound mode (CheckedItems==null, BindingPath set)
 
+        // Info rows: text getter (null = feature off) and coalescing flag for line-map rebuilds.
+        private Func<object, string>     _infoTextGetter;
+        private string                   _infoTextGetterPath;
+        private bool                     _infoLayoutRebuildScheduled;
+        // Rebuild requested while a cell was edited — rebinding slots would move the editor to another row.
+        private bool                     _infoLayoutRebuildDeferredByEdit;
+        // Items whose info text changed — data and info slots of one item both report it, refreshed once.
+        private readonly HashSet<object> _pendingInfoRefreshItems = new HashSet<object>();
+
         private bool _isForcingTemplateApply;
 
         // Coordinates in-flight async work: pending-work counter, epoch, filter-pending set,
@@ -455,6 +464,44 @@ public static readonly DependencyProperty RowReadOnlyBindingPathProperty =
             DependencyProperty.Register(nameof(FilterRowHeight), typeof(double), typeof(OpenDataGrid),
                 new PropertyMetadata(26.0));
 
+        /// <summary>
+        /// Path to a property whose text is shown in an informational row directly below the data row
+        /// (e.g. "Promo 1+1: second item for 0.01"). <c>null</c> / empty value = no info row.
+        /// Info rows have the same height as data rows, cannot be focused, selected or edited, and are
+        /// skipped by keyboard navigation. Changes are picked up through INotifyPropertyChanged.
+        /// </summary>
+        public static readonly DependencyProperty InfoRowBindingPathProperty =
+            DependencyProperty.Register(nameof(InfoRowBindingPath), typeof(string), typeof(OpenDataGrid),
+                new PropertyMetadata(null, OnInfoRowSettingsChanged));
+
+        /// <summary>Text color of info rows. Default: dark slate gray.</summary>
+        public static readonly DependencyProperty InfoRowForegroundProperty =
+            DependencyProperty.Register(nameof(InfoRowForeground), typeof(Brush), typeof(OpenDataGrid),
+                new PropertyMetadata(CreateFrozenBrush(0x4A, 0x55, 0x60), OnInfoRowSettingsChanged));
+
+        /// <summary>Background of info rows. Default: <c>null</c> = same background as the owner row (zebra / row color).</summary>
+        public static readonly DependencyProperty InfoRowBackgroundProperty =
+            DependencyProperty.Register(nameof(InfoRowBackground), typeof(Brush), typeof(OpenDataGrid),
+                new PropertyMetadata(null, OnInfoRowSettingsChanged));
+
+        /// <summary>Color of the vertical accent bar at the start of an info row. Default: amber.</summary>
+        public static readonly DependencyProperty InfoRowAccentBrushProperty =
+            DependencyProperty.Register(nameof(InfoRowAccentBrush), typeof(Brush), typeof(OpenDataGrid),
+                new PropertyMetadata(CreateFrozenBrush(0xE0, 0x9A, 0x1F), OnInfoRowSettingsChanged));
+
+        /// <summary>Font style of info-row text. Default: <see cref="FontStyles.Italic"/>.</summary>
+        public static readonly DependencyProperty InfoRowFontStyleProperty =
+            DependencyProperty.Register(nameof(InfoRowFontStyle), typeof(FontStyle), typeof(OpenDataGrid),
+                new PropertyMetadata(FontStyles.Italic, OnInfoRowSettingsChanged));
+
+        /// <summary>
+        /// When <c>false</c> (default) info rows stay pinned to the left edge of the viewport during horizontal scroll.
+        /// When <c>true</c> they move together with the columns.
+        /// </summary>
+        public static readonly DependencyProperty InfoRowScrollsHorizontallyProperty =
+            DependencyProperty.Register(nameof(InfoRowScrollsHorizontally), typeof(bool), typeof(OpenDataGrid),
+                new PropertyMetadata(false, OnInfoRowSettingsChanged));
+
         private static string GetLocalizedLoadingMessage()
         {
             switch (System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName)
@@ -521,6 +568,12 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
         public Brush CheckedRowForeground { get => (Brush)GetValue(CheckedRowForegroundProperty); set => SetValue(CheckedRowForegroundProperty, value); }
         public Brush CheckedRowBackground { get => (Brush)GetValue(CheckedRowBackgroundProperty); set => SetValue(CheckedRowBackgroundProperty, value); }
         public FontWeight? CheckedRowFontWeight { get => (FontWeight?)GetValue(CheckedRowFontWeightProperty); set => SetValue(CheckedRowFontWeightProperty, value); }
+        public string InfoRowBindingPath { get => (string)GetValue(InfoRowBindingPathProperty); set => SetValue(InfoRowBindingPathProperty, value); }
+        public Brush InfoRowForeground { get => (Brush)GetValue(InfoRowForegroundProperty); set => SetValue(InfoRowForegroundProperty, value); }
+        public Brush InfoRowBackground { get => (Brush)GetValue(InfoRowBackgroundProperty); set => SetValue(InfoRowBackgroundProperty, value); }
+        public Brush InfoRowAccentBrush { get => (Brush)GetValue(InfoRowAccentBrushProperty); set => SetValue(InfoRowAccentBrushProperty, value); }
+        public FontStyle InfoRowFontStyle { get => (FontStyle)GetValue(InfoRowFontStyleProperty); set => SetValue(InfoRowFontStyleProperty, value); }
+        public bool InfoRowScrollsHorizontally { get => (bool)GetValue(InfoRowScrollsHorizontallyProperty); set => SetValue(InfoRowScrollsHorizontallyProperty, value); }
         public Brush GridLinesBrush { get => (Brush)GetValue(GridLinesBrushProperty); set => SetValue(GridLinesBrushProperty, value); }
         /// <summary>Brush for vertical grid lines (column separators). <c>null</c> = use <see cref="GridLinesBrush"/>.</summary>
         public Brush VerticalGridLinesBrush { get => (Brush)GetValue(VerticalGridLinesBrushProperty); set => SetValue(VerticalGridLinesBrushProperty, value); }
@@ -560,6 +613,7 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
             _selection = new SelectionFocusSynchronizer(this);
             _headerPresenter = new HeaderPresenter(this);
             _filterRowPresenter = new FilterRowPresenter(this);
+            _rowEngine.InfoLayoutInvalidated += OnInfoLayoutInvalidated;
             Columns = new FreezableCollection<OpenDataGridColumn>();
             Focusable = true;
             Unloaded += OnGridUnloaded;
@@ -1560,6 +1614,18 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
             else
                 _rowBrushGetter = pathGetter;
 
+            var infoPath = InfoRowBindingPath;
+            if (string.IsNullOrEmpty(infoPath))
+                _infoTextGetter = null;
+            else if (_infoTextGetter == null || infoPath != _infoTextGetterPath)
+            {
+                // Reused while the path is unchanged — the row engine keeps its cached info flags
+                // (compared by reference), so column changes do not trigger an O(n) rescan.
+                var infoGetter = PropertyAccessorCache.CreateGetter(infoPath);
+                _infoTextGetter = item => infoGetter(item)?.ToString();
+                _infoTextGetterPath = infoPath;
+            }
+
             var rowRoPart = RowReadOnlyBindingPath;
             if (!string.IsNullOrEmpty(rowRoPart))
                 _rowReadOnlyGetter = PropertyAccessorCache.CreateBoolGetter(rowRoPart);
@@ -1818,6 +1884,15 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
             var selForeground      = SelectionForeground;
             var gridForeground     = Foreground;
             var defaultRowBg       = RowBackground ?? Rendering.ThemePalette.Light.RowBackground;
+            var infoStyle          = _infoTextGetter == null ? null : new InfoRowStyle
+            {
+                RootPropertyName    = InfoRowBindingPath.Split('.')[0],
+                Foreground          = InfoRowForeground,
+                Background          = InfoRowBackground,
+                AccentBrush         = InfoRowAccentBrush,
+                FontStyle           = InfoRowFontStyle,
+                ScrollsHorizontally = InfoRowScrollsHorizontally,
+            };
 
             IRowSlot SlotFactory(int poolIndex)
             {
@@ -1825,6 +1900,11 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
                 row.UpdateDefaultCellFont(CellFontFamily, CellFontSize, CellFontWeight);
                 row.Initialize(cols, widths, offsets, resolver, selBrush, AlternateRowShift, gridForeground, selForeground, defaultRowBg);
                 row.PoolIndex = poolIndex;
+                if (infoStyle != null)
+                {
+                    row.ConfigureInfoRow(infoStyle);
+                    row.InfoSourceChanged += OnInfoSourceChanged;
+                }
                 return row;
             }
 
@@ -1847,6 +1927,7 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
                 ColumnOffsets       = offsets,
                 IsPlaceholderMode   = IsPlaceholderActive,
                 IsCheckedAccessor   = IsItemChecked,
+                InfoTextAccessor    = _infoTextGetter,
                 CheckedRowForeground = CheckedRowForeground,
                 CheckedRowBackground = CheckedRowBackground,
                 CheckedRowFontWeight = CheckedRowFontWeight,
@@ -1857,6 +1938,102 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
                 _verticalGridLinePen = BuildGridLinePen(VerticalGridLinesBrush);
             _rowEngine.SetGridLinePen(_gridLinePen, _verticalGridLinePen);
             _rowEngine.SetGridLinesVisibility(GridLinesVisibility);
+        }
+
+        // ── Info rows ───────────────────────────────────────────────────────
+
+        private static void OnInfoRowSettingsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var grid = (OpenDataGrid)d;
+            if (!grid._lifecycle.CanHandleInput || !grid._rowEngine.IsInitialized) return;
+            // Settings are rare, static configuration — rebuild accessors and the pool,
+            // keeping the first visible data row in place.
+            int anchorSorted = grid._rowEngine.GetFirstVisibleSortedIndex();
+            // Only the path changes the text getter; style-only changes keep it so the cached
+            // info flags survive (no O(n) rescan of the data source).
+            if (e.Property == InfoRowBindingPathProperty)
+                grid.BuildPropertyAccessors();
+            grid.InitializeRowEngine();
+            // Page step depends on whether any info rows exist.
+            grid._navEngine.UpdateStats(grid.EffectiveRowCount, grid.GetNavigationVisibleRows());
+            grid.ScrollToSortedTop(anchorSorted);
+        }
+
+        /// <summary>A visible row observed a change of its item's info property.</summary>
+        private void OnInfoSourceChanged(object item)
+        {
+            if (!_pendingInfoRefreshItems.Add(item) || _pendingInfoRefreshItems.Count > 1) return;
+            Dispatcher.BeginInvoke(new Action(RefreshPendingInfoItems), DispatcherPriority.Render);
+        }
+
+        private void RefreshPendingInfoItems()
+        {
+            var items = new List<object>(_pendingInfoRefreshItems);
+            _pendingInfoRefreshItems.Clear();
+            foreach (var item in items)
+                _rowEngine.RefreshInfoForItem(item);
+        }
+
+        /// <summary>
+        /// Info text appeared / disappeared — the line map is stale. Coalesced: many changes
+        /// in one dispatcher frame (e.g. a VM recomputing promotions) produce a single O(n) rebuild.
+        /// </summary>
+        private void OnInfoLayoutInvalidated(object sender, EventArgs e)
+        {
+            if (_infoLayoutRebuildScheduled) return;
+            _infoLayoutRebuildScheduled = true;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _infoLayoutRebuildScheduled = false;
+                if (!_lifecycle.CanHandleInput || !_rowEngine.IsInitialized) return;
+                if (_editingCell != null)
+                {
+                    _infoLayoutRebuildDeferredByEdit = true;
+                    return;
+                }
+                int focusedSorted = FocusedRowSortedIndex;
+                bool keepFocusedVisible = IsSortedRowFullyVisible(focusedSorted);
+                int first = _rowEngine.RebuildInfoLayout();
+                UpdateScrollBarRange();
+                SetVerticalScrollValueSilently(first);
+                // Page step depends on whether any info rows exist.
+                _navEngine.UpdateStats(EffectiveRowCount, GetNavigationVisibleRows());
+                // A newly appeared info row of the focused row may fall below the viewport (e.g. at the end).
+                if (keepFocusedVisible)
+                    EnsureRowVisible(focusedSorted);
+            }), DispatcherPriority.Render);
+        }
+
+        /// <summary>Replays an info-layout rebuild that was postponed while a cell was in edit mode.</summary>
+        private void RunInfoLayoutRebuildDeferredByEdit()
+        {
+            if (!_infoLayoutRebuildDeferredByEdit) return;
+            _infoLayoutRebuildDeferredByEdit = false;
+            OnInfoLayoutInvalidated(this, EventArgs.Empty);
+        }
+
+        private bool IsSortedRowFullyVisible(int sortedIndex)
+        {
+            if (sortedIndex < 0 || sortedIndex >= EffectiveRowCount) return false;
+            return _rowEngine.IsLineFullyVisible(_rowEngine.SortedToLine(sortedIndex));
+        }
+
+        /// <summary>Sets the vertical scroll bar value without triggering <see cref="OnVerticalScroll"/>.</summary>
+        private void SetVerticalScrollValueSilently(int line)
+        {
+            _suppressScrollEvents = true;
+            _vScrollBar.Value = line;
+            _suppressScrollEvents = false;
+        }
+
+        /// <summary>Scrolls so that the data row at <paramref name="sortedIndex"/> is the first visible line.</summary>
+        private void ScrollToSortedTop(int sortedIndex)
+        {
+            UpdateScrollBarRange();
+            if (_vScrollBar == null) return;
+            int line = Math.Max(0, Math.Min(_rowEngine.GetMaxFirstVisibleIndex(), _rowEngine.SortedToLine(sortedIndex)));
+            SetVerticalScrollValueSilently(line);
+            _rowEngine.ScrollTo(line);
         }
 
         internal void InitializeNavEngine()
@@ -1958,6 +2135,7 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
         {
             // Coalesce multiple rapid events (e.g. 100 ObservableCollection.Add calls) into a single
             // rebuild. Only the first event in a burst schedules the work; subsequent events return early.
+            _rowEngine.InvalidateInfoCache();
             if (_collectionRebuildScheduled) return;
             _collectionRebuildScheduled = true;
             var work = _workCoordinator.BeginWork();

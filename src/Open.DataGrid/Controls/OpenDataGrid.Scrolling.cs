@@ -135,7 +135,7 @@ namespace Open.DataGrid.Controls
         {
             // Navigation/page step should always move at least one row,
             // even when viewport is too small to fit a full row.
-            return Math.Max(1, _rowEngine.GetVisibleRowCount());
+            return Math.Max(1, _rowEngine.GetVisibleDataRowCount());
         }
 
         internal void UpdateHScrollBar()

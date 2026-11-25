@@ -34,6 +34,20 @@ namespace Open.DataGrid.Rendering
         }
 
         /// <summary>
+        /// Returns <paramref name="baseBrush"/> mixed with <paramref name="overlay"/> at <paramref name="amount"/> (0.0–1.0).
+        /// Both must be <see cref="SolidColorBrush"/>; otherwise <paramref name="overlay"/> is returned. Result is frozen.
+        /// </summary>
+        public static Brush Blend(Brush baseBrush, Brush overlay, double amount)
+        {
+            if (!(baseBrush is SolidColorBrush b) || !(overlay is SolidColorBrush o)) return overlay;
+            byte Mix(byte x, byte y) => (byte)Math.Round(x + (y - x) * amount);
+            var result = new SolidColorBrush(Color.FromRgb(
+                Mix(b.Color.R, o.Color.R), Mix(b.Color.G, o.Color.G), Mix(b.Color.B, o.Color.B)));
+            result.Freeze();
+            return result;
+        }
+
+        /// <summary>
         /// Returns a focus-highlight brush derived from <paramref name="selectionBrush"/>.
         /// Light selection colors are darkened slightly; dark ones are lightened. Result is frozen.
         /// </summary>

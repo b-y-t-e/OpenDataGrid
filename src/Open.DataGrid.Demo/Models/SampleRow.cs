@@ -98,7 +98,7 @@ namespace Open.DataGrid.Demo.Models
         public int DaysSince { get => _daysSince; set => Set(ref _daysSince, value); }
 
         private int _sequenceNo;
-        public int SequenceNo { get => _sequenceNo; set => Set(ref _sequenceNo, value); }
+        public int SequenceNo { get => _sequenceNo; set { if (Set(ref _sequenceNo, value)) Calculate(); } }
 
         // --- DateTime columns (6) ---
         private DateTime _createdDate;
@@ -154,6 +154,13 @@ namespace Open.DataGrid.Demo.Models
         /// <summary>Optional per-row background brush (demo of RowBackgroundBindingPath).</summary>
         public Brush RowColor { get => _rowColor; set => Set(ref _rowColor, value); }
 
+        private string _promoInfo;
+        /// <summary>
+        /// Info row text (demo of InfoRowBindingPath). Promo products (every 20th row) show the promotion
+        /// once Quantity >= 2 — editing Quantity makes the info row appear / disappear live.
+        /// </summary>
+        public string PromoInfo { get => _promoInfo; private set => Set(ref _promoInfo, value); }
+
         private string _customData;
         /// <summary>Misc string displayed in a custom column.</summary>
         public string CustomData { get => _customData; set => Set(ref _customData, value); }
@@ -173,6 +180,9 @@ namespace Open.DataGrid.Demo.Models
         private void Calculate()
         {
             Wartosc = (decimal)_quantity * _price;
+            PromoInfo = _sequenceNo % 20 == 3 && _quantity >= 2
+                ? "Promo 1+1: second item for 0.01"
+                : null;
         }
     }
 }

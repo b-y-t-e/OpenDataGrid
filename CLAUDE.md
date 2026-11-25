@@ -68,6 +68,16 @@ An off-by-one error in any of the above causes the last data row to be invisible
 - `RowVirtualizationEngine._totalRows` = `SortedIndices.Length` (not `DataSource.Count`) — this automatically gives a correct scrollbar and navigation.
 - `RegisterFilter(key, predicate)` / `UnregisterFilter(key)` are **internal** methods — accessible only to `OpenDataGridTextFilter` / `OpenDataGridComboFilter`. A custom filter control requires extending this API. Multiple filters = AND.
 
+### Info Rows (InfoRow)
+
+DP `InfoRowBindingPath` (string) — text from this property of the data item (`null`/empty = none) is rendered as a separate row **below** the data row (e.g. "Promo 1+1: second item for 0.01"). Same height as `RowHeight`, single line, no focus/selection/editing, not subject to filtering.
+
+- **Line space**: `RowVirtualizationEngine` works on "lines" (a data row or an info row). `_lineToSorted[line]` = sorted index (data) or `~sorted` (info); `_sortedToLine` is the inverse. When no row has info text both maps are `null` (identity, zero overhead). The map is built in `BuildLineMap()` on every `Initialize`; per-data-index "has info" flags are cached (`EnsureInfoFlags`) and rescanned only after a source/getter change, `CollectionChanged` (`InvalidateInfoCache`) or `RebuildInfoLayout` — sort/filter without info texts = O(1).
+- **What is in lines**: `ScrollBar.Value/Maximum`, `GetFirstVisibleIndex`, `GetMaxFirstVisibleIndex`, `ScrollTo`. **What is in sorted indices**: `NavigationEngine`, `SortEngine`, `ApplyCellFocus`, `SetFocus`. Conversion: `SortedToLine`, `LineToSorted`, `IsInfoLine`, `GetLastLineOfSorted`, `GetFirstVisibleSortedIndex`. `EnsureRowVisible` shows the row together with its info row.
+- **Info slot**: `IRowSlot.BindInfo(...)`, `DataIndex = InfoRowDataIndex (-3)`, `DataItem = null` (no item/index lookup can hit it), `InfoOwnerDataIndex` = owner (owner selection subtly highlights the info row via `BrushShift.Blend`). The data row above an info row gets `SetHasInfoRowBelow(true)` → no bottom grid line. Zebra parity follows the sorted index, not the line.
+- **Dynamics**: rows (data and info) listen to INPC; a change of the first path segment → `InfoSourceChanged` → `RefreshInfoForItem`. Text appearing/disappearing (also detected on bind for non-INPC models) → `InfoLayoutInvalidated` → coalesced `RebuildInfoLayout()` (anchor = first visible data row).
+- Styling: `InfoRowForeground`, `InfoRowBackground` (null = owner row background), `InfoRowAccentBrush` (left bar), `InfoRowFontStyle` (Italic), `InfoRowScrollsHorizontally` (default `false` = pinned to the viewport's left edge). Changing any `InfoRow*` DP rebuilds the pool (`OnInfoRowSettingsChanged`). Not themed — `Theme="Dark"` does not touch `InfoRow*` brushes.
+
 ### Deferred Render and Loading Indicator
 
 The grid shows a loading indicator (overlay + bar) and defers data rendering while:
@@ -161,6 +171,8 @@ Both controls inherit directly from built-in WPF controls and communicate with t
 - DP `FocusGridOnConfirm` (`bool`, default `true`) — Enter / ArrowDown moves focus to the grid.
 - DP `EnterCommand` (`ICommand`, default `null`) — when bound, Enter executes the command with `Grid.SelectedItem` as the parameter and does **not** move focus to the grid (treated as `FocusGridOnConfirm = false` for Enter).
 - Logic: text split by spaces → each token must appear in at least one of the fields (`IndexOf`, `OrdinalIgnoreCase`). "samsung fridge" = AND.
+- DP `KeepFocusOnNavigation` (`bool`, default `false`) — Up/Down/PageUp/PageDown move the grid's row selection while focus stays in the filter (search-box-over-list); takes precedence over `FocusGridOnConfirm` for these keys; Enter is unaffected.
+- DP `HorizontalArrowsNavigateGridControls` (`bool`, default `false`) — Left/Right at the text edge move focus to the previous/next control bound to the same grid, ordered by `TabIndex`.
 - Getter cache via `PropertyAccessorCache.TryCreateStringGetter` per object type.
 - On `Loaded`: if `Text` is non-empty → `ApplyFilter()` immediately (no 300ms debounce); if empty → `NotifyFilterReady`.
 - `OnGridChanged`: calls `NotifyFilterPending` on the new grid and `NotifyFilterReady` on the old one.
@@ -540,6 +552,10 @@ The `Open.DataGrid.Tests` project (NUnit 3, STA) — **451 unit tests + 75 integ
 | PropertyAccessorCache — compiled delegates | `PropertyAccessorCacheTests` | 7 |
 | Column reorder: AllowColumnReorder, PerformReorder, focus remap | `HeaderPresenterReorderTests` | 9 |
 | Header interactions before data is loaded | `LoadingStateInteractionTests` | 4 |
+| Info rows — line map, bind, zebra, selection, dynamics | `InfoRowEngineTests` | 18 |
+| Info rows — render, navigation, scroll, INPC, runtime DPs | `InfoRowGridTests` | 12 |
+| TextFilter `KeepFocusOnNavigation` | `TextFilterNavigationForwardTests` | 8 |
+| TextFilter `HorizontalArrowsNavigateGridControls` | `TextFilterTabOnArrowsTests` | 10 |
 | DiacriticsHelper — PL/Unicode normalisation, edge cases | `DiacriticsHelperTests` | 22 |
 | CellForegroundResolver — highlight contrast, column/grid fallback | `CellForegroundResolverTests` | 7 |
 | Theme palette sanity, DP apply/revert, user override, System stub | `ThemeTests` | 15 |

@@ -65,6 +65,24 @@ namespace Open.DataGrid.Controls
         private Func<object, object>[] _propertyAccessors;
         private Func<object, Brush>[]  _cellBrushAccessors;
         private string[]               _bindingPaths;
+        // Item whose PropertyChanged is currently observed (data item, or owner item in info mode).
+        private object                 _subscribedItem;
+
+        // Info row mode — lazily created presenter shown instead of cells.
+        private InfoRowStyle     _infoStyle;
+        private InfoRowPresenter _infoPresenter;
+        private Brush            _infoOwnerBackground;
+        private bool             _hasInfoRowBelow;
+
+        public bool IsInfoRow { get; private set; }
+        public int  InfoOwnerDataIndex { get; private set; } = -1;
+        internal InfoRowStyle InfoStyle => _infoStyle;
+
+        /// <summary>
+        /// Raised with the observed item when its info property (<see cref="InfoRowStyle.RootPropertyName"/>)
+        /// changes — in data mode and in info mode. The grid forwards it to the row engine.
+        /// </summary>
+        internal event Action<object> InfoSourceChanged;
 
         public OpenDataGridRow()
         {
@@ -103,14 +121,17 @@ if (_gridLinePen == null
                     || _columnOffsets == null
                     || _columnWidths == null) return;
 
-                // Row separator — bottom edge of row
-                if (_gridLinesVisibility == GridLinesVisibility.All
-                    || _gridLinesVisibility == GridLinesVisibility.Horizontal)
+                // Row separator — bottom edge of row. Omitted above an attached info row so the
+                // data row and its info line read as one block.
+                if ((_gridLinesVisibility == GridLinesVisibility.All
+                     || _gridLinesVisibility == GridLinesVisibility.Horizontal)
+                    && !_hasInfoRowBelow)
                     dc.DrawLine(_gridLinePen, new Point(0, h - 0.5), new Point(w, h - 0.5));
 
-                // Column separators — right edge of each visible column
-                if (_gridLinesVisibility == GridLinesVisibility.All
-                    || _gridLinesVisibility == GridLinesVisibility.Vertical)
+                // Column separators — right edge of each visible column (not drawn on info rows)
+                if (!IsInfoRow
+                    && (_gridLinesVisibility == GridLinesVisibility.All
+                        || _gridLinesVisibility == GridLinesVisibility.Vertical))
                 {
                     var vPen = _verticalGridLinePen ?? _gridLinePen;
                     for (int i = _firstVisibleCol; i <= _lastVisibleCol && i < _columnCount; i++)
@@ -211,8 +232,9 @@ if (_gridLinePen == null
         /// </summary>
         public void BindPlaceholder(double hOffset, int firstVisibleCol, int lastVisibleCol)
         {
-            if (DataItem is INotifyPropertyChanged oldInpc)
-                oldInpc.PropertyChanged -= OnDataItemPropertyChanged;
+            SubscribeTo(null);
+            LeaveInfoMode();
+            _hasInfoRowBelow = false;
 
             DataIndex        = RowVirtualizationEngine.PlaceholderDataIndex;
             DataItem         = null;
@@ -265,18 +287,14 @@ if (_gridLinePen == null
             bool isAlternate)
         {
             IsPlaceholder = false;
-            bool itemChanged = !ReferenceEquals(DataItem, dataItem);
-
-            if (itemChanged && DataItem is INotifyPropertyChanged oldInpc)
-                oldInpc.PropertyChanged -= OnDataItemPropertyChanged;
+            LeaveInfoMode();
 
             DataIndex = dataIndex;
             DataItem  = dataItem;
             _propertyAccessors  = propertyAccessors;
             _cellBrushAccessors = cellBrushAccessors;
 
-            if (itemChanged && dataItem is INotifyPropertyChanged newInpc)
-                newInpc.PropertyChanged += OnDataItemPropertyChanged;
+            SubscribeTo(dataItem);
 
             _hOffset         = hOffset;
             _firstVisibleCol = firstVisibleCol;
@@ -313,23 +331,45 @@ if (_gridLinePen == null
 
         public void Unbind()
         {
-            if (DataItem is INotifyPropertyChanged inpc)
-                inpc.PropertyChanged -= OnDataItemPropertyChanged;
+            SubscribeTo(null);
+        }
+
+        private void SubscribeTo(object item)
+        {
+            if (ReferenceEquals(_subscribedItem, item)) return;
+            if (_subscribedItem is INotifyPropertyChanged oldInpc)
+                oldInpc.PropertyChanged -= OnDataItemPropertyChanged;
+            _subscribedItem = item;
+            if (item is INotifyPropertyChanged newInpc)
+                newInpc.PropertyChanged += OnDataItemPropertyChanged;
         }
 
         private void OnDataItemPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (_propertyAccessors == null || _cellBrushAccessors == null) return;
-
+            // Use the observed item, not `sender` — some models (proxies / wrappers) raise
+            // PropertyChanged with a different sender than the object we subscribed to.
+            var item = _subscribedItem;
             if (Dispatcher.CheckAccess())
-                ApplyPropertyChange(e.PropertyName);
+                ApplyPropertyChange(item, e.PropertyName);
             else
-                Dispatcher.BeginInvoke(new Action(() => ApplyPropertyChange(e.PropertyName)));
+                Dispatcher.BeginInvoke(new Action(() => ApplyPropertyChange(item, e.PropertyName)));
         }
 
-        private void ApplyPropertyChange(string propertyName)
+        private void ApplyPropertyChange(object sender, string propertyName)
         {
-            if (_cells == null || DataItem == null) return;
+            // Stale notification (slot was rebound to another item before the dispatcher ran).
+            if (sender == null || !ReferenceEquals(sender, _subscribedItem)) return;
+
+            string infoProperty = _infoStyle?.RootPropertyName;
+            if (infoProperty != null && (string.IsNullOrEmpty(propertyName) || propertyName == infoProperty))
+            {
+                // Raised before the cell refresh — the handler may rebind this slot.
+                InfoSourceChanged?.Invoke(sender);
+                if (!ReferenceEquals(sender, _subscribedItem)) return;
+            }
+
+            if (IsInfoRow) return;
+            if (_cells == null || DataItem == null || _propertyAccessors == null || _cellBrushAccessors == null) return;
 
             // Null or empty name means "all properties changed"
             if (string.IsNullOrEmpty(propertyName))
@@ -353,9 +393,84 @@ if (_gridLinePen == null
             }
         }
 
+        // ── Info row mode ────────────────────────────────────────────────────
+
+        /// <summary>Applies the grid's info-row settings. Called once per pooled row by the slot factory.</summary>
+        internal void ConfigureInfoRow(InfoRowStyle style)
+        {
+            _infoStyle = style;
+            if (_infoPresenter != null) _infoPresenter.InfoStyle = style;
+        }
+
+        public void BindInfo(int ownerDataIndex, object ownerItem, string text,
+                             Brush ownerRowBackground, bool isOwnerSelected, double hOffset)
+        {
+            SubscribeTo(ownerItem);
+            SetCellFocus(-1, false);
+            UpdateCheckedState(false);
+
+            bool enteringInfoMode = !IsInfoRow;
+            IsInfoRow          = true;
+            IsPlaceholder      = false;
+            InfoOwnerDataIndex = ownerDataIndex;
+            DataIndex          = RowVirtualizationEngine.InfoRowDataIndex;
+            DataItem           = null;
+            _hOffset           = hOffset;
+            _hasInfoRowBelow   = false;
+            _infoOwnerBackground = ownerRowBackground;
+
+            EnsureInfoPresenter();
+            _infoPresenter.SetText(text);
+
+            if (enteringInfoMode)
+            {
+                if (_cells != null)
+                    for (int i = 0; i < _columnCount; i++)
+                        _cells[i].Visibility = Visibility.Collapsed;
+                _infoPresenter.Visibility = Visibility.Visible;
+            }
+
+            IsSelected = isOwnerSelected;
+            UpdateInfoBackground();
+            InvalidateArrange();
+        }
+
+        public void SetHasInfoRowBelow(bool hasInfoRowBelow)
+        {
+            if (_hasInfoRowBelow == hasInfoRowBelow) return;
+            _hasInfoRowBelow = hasInfoRowBelow;
+            InvalidateArrange();
+        }
+
+        private void LeaveInfoMode()
+        {
+            if (!IsInfoRow) return;
+            IsInfoRow          = false;
+            InfoOwnerDataIndex = -1;
+            if (_infoPresenter != null) _infoPresenter.Visibility = Visibility.Collapsed;
+            // Cell visibility is restored by the caller (Bind / BindPlaceholder set it per column range).
+        }
+
+        private void EnsureInfoPresenter()
+        {
+            if (_infoPresenter != null) return;
+            _infoPresenter = new InfoRowPresenter { InfoStyle = _infoStyle };
+            _infoPresenter.ApplyFont(_defaultCellFontFamily, _defaultCellFontSize);
+            Children.Add(_infoPresenter);
+        }
+
+        private void UpdateInfoBackground()
+            => Background = _infoPresenter.ResolveBackground(_infoOwnerBackground, IsSelected, _selectionBrush);
+
         public void UpdateSelection(bool isSelected)
         {
             if (IsSelected == isSelected) return;
+            if (IsInfoRow)
+            {
+                IsSelected = isSelected;
+                UpdateInfoBackground();
+                return;
+            }
             IsSelected = isSelected;
             UpdateBackground(isSelected);
 
@@ -409,6 +524,7 @@ if (_gridLinePen == null
             _defaultCellFontFamily = fontFamily;
             _defaultCellFontSize = fontSize;
             _defaultCellFontWeight = fontWeight;
+            _infoPresenter?.ApplyFont(fontFamily, fontSize);
 
             if (_cells == null) return;
             for (int i = 0; i < _columnCount; i++)
@@ -485,8 +601,9 @@ if (_gridLinePen == null
             _firstVisibleCol = firstVisibleCol;
             _lastVisibleCol  = lastVisibleCol;
 
-            for (int i = 0; i < _columnCount; i++)
-                _cells[i].Visibility = (i >= firstVisibleCol && i <= lastVisibleCol) ? Visibility.Visible : Visibility.Collapsed;
+            if (!IsInfoRow)
+                for (int i = 0; i < _columnCount; i++)
+                    _cells[i].Visibility = (i >= firstVisibleCol && i <= lastVisibleCol) ? Visibility.Visible : Visibility.Collapsed;
 
             InvalidateArrange();
         }
@@ -513,6 +630,13 @@ if (_gridLinePen == null
             }
         }
 
+        private double GetTotalColumnsWidth()
+        {
+            if (_columnWidths == null || _columnCount == 0) return 0;
+            int last = _columnCount - 1;
+            return _columnOffsets[last] + _columnWidths[last];
+        }
+
         protected override Size MeasureOverride(Size availableSize)
         {
             if (_cells == null) return Size.Empty;
@@ -529,6 +653,12 @@ if (_gridLinePen == null
                     desiredWidth += _columnWidths[i];
             }
 
+            if (IsInfoRow)
+            {
+                _infoPresenter.MeasureInRow(new Size(desiredWidth, desiredHeight), _hOffset, GetTotalColumnsWidth());
+                return new Size(desiredWidth, desiredHeight);
+            }
+
             for (int i = _firstVisibleCol; i <= _lastVisibleCol && i < _columnCount; i++)
             {
                 var cell = _cells[i];
@@ -542,6 +672,13 @@ if (_gridLinePen == null
         protected override Size ArrangeOverride(Size finalSize)
         {
             if (_cells == null) return finalSize;
+
+            if (IsInfoRow)
+            {
+                _infoPresenter.ArrangeInRow(finalSize, _hOffset, GetTotalColumnsWidth());
+                UpdateGridLinesDrawing(finalSize);
+                return finalSize;
+            }
 
             double scrollOrigin = _hOffset;
 
