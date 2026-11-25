@@ -10,14 +10,48 @@ namespace Open.DataGrid.Controls
     {
         #region Scrolling
 
-        private void OnVerticalScroll(object sender, ScrollEventArgs e)
+        /// <summary>Minimum vertical thumb length (DIP) — keeps the thumb grabbable with huge row counts.</summary>
+        private const double MinVerticalThumbLength = 24.0;
+
+        // Listens to ValueChanged (not Scroll) so that every Value source — thumb drag, track click,
+        // UI Automation / screen readers, programmatic assignment — keeps rows in sync with the thumb.
+        // Redundant calls are cheap: RowVirtualizationEngine.ScrollTo returns early when delta == 0.
+        private void OnVerticalValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (_suppressScrollEvents) return;
+            if (_suppressScrollEvents || _rowEngine == null) return;
             int firstVisible = (int)_vScrollBar.Value;
 #if DEBUG
-            Debug.WriteLine($"[EDG] OnVerticalScroll: firstVisible={firstVisible}");
+            Debug.WriteLine($"[EDG] OnVerticalValueChanged: firstVisible={firstVisible}");
 #endif
             _rowEngine.ScrollTo(firstVisible);
+        }
+
+        private void OnVerticalScrollBarSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (e.HeightChanged) UpdateVerticalThumbSize();
+        }
+
+        /// <summary>
+        /// WPF's Track sizes the thumb as trackLength * viewport / (range + viewport) with only a
+        /// ~8px floor, so with 1M rows the thumb collapses to a dot. Inflate ViewportSize (used
+        /// only for thumb sizing — LargeChange stays the real page size) so the thumb is at least
+        /// <see cref="MinVerticalThumbLength"/> long. Thumb↔value mapping remains linear.
+        /// </summary>
+        private void UpdateVerticalThumbSize()
+        {
+            if (_vScrollBar == null || _rowEngine == null) return;
+
+            double viewportRows = Math.Max(1, _rowEngine.GetVisibleRowCount());
+            double range = _vScrollBar.Maximum - _vScrollBar.Minimum;
+            double trackLength = _vScrollBar.ActualHeight;
+
+            double viewport = viewportRows;
+            if (range > 0 && trackLength > MinVerticalThumbLength * 2)
+            {
+                double minViewport = MinVerticalThumbLength * range / (trackLength - MinVerticalThumbLength);
+                viewport = Math.Max(viewportRows, minViewport);
+            }
+            _vScrollBar.ViewportSize = viewport;
         }
 
         private void OnHorizontalScroll(object sender, ScrollEventArgs e)
@@ -85,8 +119,8 @@ namespace Open.DataGrid.Controls
             _suppressScrollEvents = true;
             _vScrollBar.Minimum = 0;
             _vScrollBar.Maximum = maxFirstVisible;
-            _vScrollBar.ViewportSize = viewportRows;
             _vScrollBar.LargeChange = viewportRows;
+            UpdateVerticalThumbSize();
             _vScrollBar.SmallChange = 1;
 
             if (_vScrollBar.Value > _vScrollBar.Maximum)

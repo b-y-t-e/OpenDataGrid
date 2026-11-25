@@ -566,7 +566,10 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
         public override void OnApplyTemplate()
         {
             if (_vScrollBar != null)
-                _vScrollBar.Scroll -= OnVerticalScroll;
+            {
+                _vScrollBar.ValueChanged -= OnVerticalValueChanged;
+                _vScrollBar.SizeChanged -= OnVerticalScrollBarSizeChanged;
+            }
             if (_hScrollBar != null)
                 _hScrollBar.Scroll -= OnHorizontalScroll;
             if (_canvas != null)
@@ -600,7 +603,10 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
                 GetTemplateChild(PartLoadingBar) as FrameworkElement);
 
             if (_vScrollBar != null)
-                _vScrollBar.Scroll += OnVerticalScroll;
+            {
+                _vScrollBar.ValueChanged += OnVerticalValueChanged;
+                _vScrollBar.SizeChanged += OnVerticalScrollBarSizeChanged;
+            }
             if (_hScrollBar != null)
                 _hScrollBar.Scroll += OnHorizontalScroll;
             if (_canvas != null)
