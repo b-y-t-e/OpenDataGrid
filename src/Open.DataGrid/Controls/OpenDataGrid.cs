@@ -1307,6 +1307,8 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
                 ApplyThemeDp(FilterRowBackgroundProperty,   palette.FilterRowBackground);
                 ApplyThemeDp(ChromeBorderBrushProperty,     palette.ChromeBorder);
                 ApplyThemeDp(LoadingOverlayBackgroundProperty, palette.LoadingOverlay);
+                ApplyThemeDp(InfoRowForegroundProperty,      palette.InfoRowForeground);
+                ApplyThemeDp(InfoRowAccentBrushProperty,     palette.InfoRowAccent);
 
                 // Override scrollbar dynamic resources.
                 Resources[ScrollBarTrackKey]      = palette.ScrollBarTrack;
@@ -1946,6 +1948,8 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
         {
             var grid = (OpenDataGrid)d;
             if (!grid._lifecycle.CanHandleInput || !grid._rowEngine.IsInitialized) return;
+            // Style-only change with no info rows configured (e.g. a theme switch) — nothing to restyle.
+            if (e.Property != InfoRowBindingPathProperty && grid._infoTextGetter == null) return;
             // Settings are rare, static configuration — rebuild accessors and the pool,
             // keeping the first visible data row in place.
             int anchorSorted = grid._rowEngine.GetFirstVisibleSortedIndex();

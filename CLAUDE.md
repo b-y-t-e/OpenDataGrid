@@ -76,7 +76,7 @@ DP `InfoRowBindingPath` (string) — text from this property of the data item (`
 - **What is in lines**: `ScrollBar.Value/Maximum`, `GetFirstVisibleIndex`, `GetMaxFirstVisibleIndex`, `ScrollTo`. **What is in sorted indices**: `NavigationEngine`, `SortEngine`, `ApplyCellFocus`, `SetFocus`. Conversion: `SortedToLine`, `LineToSorted`, `IsInfoLine`, `GetLastLineOfSorted`, `GetFirstVisibleSortedIndex`. `EnsureRowVisible` shows the row together with its info row.
 - **Info slot**: `IRowSlot.BindInfo(...)`, `DataIndex = InfoRowDataIndex (-3)`, `DataItem = null` (no item/index lookup can hit it), `InfoOwnerDataIndex` = owner (owner selection subtly highlights the info row via `BrushShift.Blend`). The data row above an info row gets `SetHasInfoRowBelow(true)` → no bottom grid line. Zebra parity follows the sorted index, not the line.
 - **Dynamics**: rows (data and info) listen to INPC; a change of the first path segment → `InfoSourceChanged` → `RefreshInfoForItem`. Text appearing/disappearing (also detected on bind for non-INPC models) → `InfoLayoutInvalidated` → coalesced `RebuildInfoLayout()` (anchor = first visible data row).
-- Styling: `InfoRowForeground`, `InfoRowBackground` (null = owner row background), `InfoRowAccentBrush` (left bar), `InfoRowFontStyle` (Italic), `InfoRowScrollsHorizontally` (default `false` = pinned to the viewport's left edge). Changing any `InfoRow*` DP rebuilds the pool (`OnInfoRowSettingsChanged`). Not themed — `Theme="Dark"` does not touch `InfoRow*` brushes.
+- Styling: `InfoRowForeground`, `InfoRowBackground` (null = owner row background), `InfoRowAccentBrush` (left bar), `InfoRowFontStyle` (Italic), `InfoRowScrollsHorizontally` (default `false` = pinned to the viewport's left edge). Changing any `InfoRow*` DP rebuilds the pool (`OnInfoRowSettingsChanged`). `Theme` manages `InfoRowForeground` and `InfoRowAccentBrush` (user-set values win); a style-only `InfoRow*` change is a no-op when no `InfoRowBindingPath` is set.
 
 ### Deferred Render and Loading Indicator
 
@@ -427,7 +427,7 @@ This means: set `HeaderBackground = Brushes.Green` in XAML → switching to Dark
 
 `Control.Background`, `Control.BorderBrush`, `Control.Foreground`, `HeaderBackground`, `HeaderForeground`,
 `ColumnSeparatorBrush`, `AlternateRowBackground`, `RowBackground`, `SelectionBrush`, `GridLinesBrush`,
-`HeaderAreaBackground`, `FilterRowBackground`, `ChromeBorderBrush`, `LoadingOverlayBackground`.
+`HeaderAreaBackground`, `FilterRowBackground`, `ChromeBorderBrush`, `LoadingOverlayBackground`, `InfoRowForeground`, `InfoRowAccentBrush`.
 
 ### Chrome DPs (new, consumed by ControlTemplate)
 

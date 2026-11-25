@@ -243,6 +243,64 @@ namespace Open.DataGrid.Tests.Rendering
 
         // ── Helpers ──────────────────────────────────────────────────────────────
 
+        // ── Info row ─────────────────────────────────────────────────────────────
+
+        [Test]
+        public void Theme_SetToDark_AppliesDarkInfoRowBrushes()
+        {
+            // Given
+            var grid = new OpenDataGrid();
+
+            // When
+            grid.Theme = GridTheme.Dark;
+
+            // Then
+            Assert.That(grid.InfoRowForeground, Is.SameAs(ThemePalette.Dark.InfoRowForeground));
+            Assert.That(grid.InfoRowAccentBrush, Is.SameAs(ThemePalette.Dark.InfoRowAccent));
+        }
+
+        [Test]
+        public void Theme_RevertToLight_RestoresDefaultInfoRowForeground()
+        {
+            // Given — a dark grid
+            var grid = new OpenDataGrid();
+            var lightDefault = ((SolidColorBrush)grid.InfoRowForeground).Color;
+            grid.Theme = GridTheme.Dark;
+
+            // When
+            grid.Theme = GridTheme.Light;
+
+            // Then — the DP default is back
+            Assert.That(((SolidColorBrush)grid.InfoRowForeground).Color, Is.EqualTo(lightDefault));
+        }
+
+        [Test]
+        public void Theme_Dark_DoesNotOverrideUserExplicitInfoRowForeground()
+        {
+            // Given — user picked an info row color
+            var grid = new OpenDataGrid { InfoRowForeground = Brushes.Orange };
+
+            // When
+            grid.Theme = GridTheme.Dark;
+
+            // Then
+            Assert.That(grid.InfoRowForeground, Is.SameAs(Brushes.Orange));
+        }
+
+        [Test]
+        public void Palette_Dark_InfoRowForeground_IsReadableOnDarkRows()
+        {
+            // Given
+            var fg = ((SolidColorBrush)ThemePalette.Dark.InfoRowForeground).Color;
+            var bg = ((SolidColorBrush)ThemePalette.Dark.RowBackground).Color;
+
+            // When
+            double delta = Luminance(fg) - Luminance(bg);
+
+            // Then — clearly lighter than the row (the Light default #4A5560 would be ~45 here)
+            Assert.That(delta, Is.GreaterThan(100));
+        }
+
         private static double Luminance(Color c)
             => 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;
     }

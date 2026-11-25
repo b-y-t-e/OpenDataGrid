@@ -44,6 +44,10 @@ namespace Open.DataGrid.Rendering
         public readonly Brush ScrollBarThumbHover;
         public readonly Brush ScrollBarThumbDrag;
 
+        // ── Info row (InfoRowBindingPath) ────────────────────────────────────────────
+        public readonly Brush InfoRowForeground;
+        public readonly Brush InfoRowAccent;          // left accent bar
+
         private ThemePalette(
             Color rowBg,
             Color altRowBg,
@@ -62,7 +66,9 @@ namespace Open.DataGrid.Rendering
             Color scrollTrack,
             Color scrollThumb,
             Color scrollThumbHover,
-            Color scrollThumbDrag)
+            Color scrollThumbDrag,
+            Color infoRowFg,
+            Color infoRowAccent)
         {
             RowBackground         = Freeze(rowBg);
             AlternateRowBackground = Freeze(altRowBg);
@@ -82,6 +88,8 @@ namespace Open.DataGrid.Rendering
             ScrollBarThumb        = Freeze(scrollThumb);
             ScrollBarThumbHover   = Freeze(scrollThumbHover);
             ScrollBarThumbDrag    = Freeze(scrollThumbDrag);
+            InfoRowForeground     = Freeze(infoRowFg);
+            InfoRowAccent         = Freeze(infoRowAccent);
         }
 
         private static SolidColorBrush Freeze(Color c)
@@ -114,7 +122,9 @@ namespace Open.DataGrid.Rendering
             scrollTrack:      Hex(0xF0, 0xF0, 0xF0),
             scrollThumb:      Hex(0xCD, 0xCD, 0xCD),
             scrollThumbHover: Hex(0xA6, 0xA6, 0xA6),
-            scrollThumbDrag:  Hex(0x60, 0x60, 0x60)
+            scrollThumbDrag:  Hex(0x60, 0x60, 0x60),
+            infoRowFg:        Hex(0x4A, 0x55, 0x60),  // matches InfoRowForeground DP default
+            infoRowAccent:    Hex(0xE0, 0x9A, 0x1F)   // matches InfoRowAccentBrush DP default
         );
 
         // ── Dark palette ──────────────────────────────────────────────────────────────
@@ -137,7 +147,9 @@ namespace Open.DataGrid.Rendering
             scrollTrack:      Hex(0x1E, 0x1E, 0x1E),  // same as row bg — blends in
             scrollThumb:      Hex(0x4D, 0x4D, 0x4D),
             scrollThumbHover: Hex(0x5A, 0x5A, 0x5A),
-            scrollThumbDrag:  Hex(0x7A, 0x7A, 0x7A)
+            scrollThumbDrag:  Hex(0x7A, 0x7A, 0x7A),
+            infoRowFg:        Hex(0xA0, 0xA8, 0xB4),  // muted light slate — readable on #1E1E1E
+            infoRowAccent:    Hex(0xD7, 0xA1, 0x3A)   // softened amber
         );
     }
 }
