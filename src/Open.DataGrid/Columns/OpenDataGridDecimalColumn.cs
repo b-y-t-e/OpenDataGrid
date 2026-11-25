@@ -19,12 +19,41 @@ namespace Open.DataGrid.Columns
             DependencyProperty.Register(nameof(DecimalPlaces), typeof(int), typeof(OpenDataGridDecimalColumn),
                 new PropertyMetadata(2));
 
+        public static readonly DependencyProperty TrimTrailingZerosProperty =
+            DependencyProperty.Register(nameof(TrimTrailingZeros), typeof(bool), typeof(OpenDataGridDecimalColumn),
+                new PropertyMetadata(false));
+
         public decimal Minimum { get => (decimal)GetValue(MinimumProperty); set => SetValue(MinimumProperty, value); }
         public decimal Maximum { get => (decimal)GetValue(MaximumProperty); set => SetValue(MaximumProperty, value); }
         public int DecimalPlaces { get => (int)GetValue(DecimalPlacesProperty); set => SetValue(DecimalPlacesProperty, value); }
 
-        protected override string FormatValue(object value) =>
-            value is decimal d ? d.ToString("N" + DecimalPlaces) : value?.ToString() ?? string.Empty;
+        /// <summary>
+        /// When <c>true</c>, trailing zeros of the fractional part are trimmed in display mode
+        /// ("4234.100" → "4234.1", "53463.000" → "53463"). Does not affect edit mode.
+        /// </summary>
+        public bool TrimTrailingZeros { get => (bool)GetValue(TrimTrailingZerosProperty); set => SetValue(TrimTrailingZerosProperty, value); }
+
+        protected override string FormatValue(object value)
+        {
+            if (!(value is decimal d))
+                return value?.ToString() ?? string.Empty;
+
+            var text = d.ToString("N" + DecimalPlaces);
+            return TrimTrailingZeros ? TrimZeros(text) : text;
+        }
+
+        private static string TrimZeros(string text)
+        {
+            var sep = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+            int sepPos = text.IndexOf(sep, StringComparison.Ordinal);
+            if (sepPos < 0)
+                return text; // no fractional part
+
+            text = text.TrimEnd('0');
+            if (text.EndsWith(sep, StringComparison.Ordinal))
+                text = text.Substring(0, text.Length - sep.Length); // drop the dangling separator
+            return text;
+        }
 
         protected override bool ValidateInput(string candidate)
         {
