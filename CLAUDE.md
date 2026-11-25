@@ -301,8 +301,9 @@ Rendering helper classes:
 
 `NavigationEngine` supports two modes:
 
-- **Row** — Up/Down/PageUp/PageDown/Home(Ctrl)/End(Ctrl)
+- **Row** — Up/Down/PageUp/PageDown/Home/End/Ctrl+Home/Ctrl+End
 - **Cell** — additionally Left/Right/Tab/Shift+Tab, F2 = enter edit mode
+- **Home/End** (no Ctrl) — Cell mode: first/last visible column (row kept); Row mode: first/last row. Ctrl+Home/End always = first/last row (column kept). In edit mode Home/End stay with the editor (caret).
 
 Smart edit entry — `column.CanBeginEdit(key)` decides whether a key triggers editing:
 - Letters do **not** enter edit mode for `Decimal` / `Integer` fields
@@ -524,7 +525,7 @@ The `Open.DataGrid.Tests` project (NUnit 3, STA) — **451 unit tests + 75 integ
 | Background sort race conditions | `SortEngineRaceConditionTests` | 9 |
 | FilterEngine — AND logic, register/unregister, multi-filter | `FilterEngineTests` | 9 |
 | FilterEngine thread safety | `FilterEngineThreadSafetyTests` | 2 |
-| Navigation state: Init, UpdateStats, SetCurrentPosition | `NavigationEngineTests` | 14 |
+| Navigation state: Init, UpdateStats, SetCurrentPosition, Home/End | `NavigationEngineTests` | 21 |
 | `CanBeginEdit`, `GetComparison`, `ExtractEditValue` | `DecimalColumnTests` | 9 |
 | `CanBeginEdit`, `GetComparison`, `ExtractEditValue` | `IntegerColumnTests` | 4 |
 | `CanBeginEdit`, `GetComparison`, `ExtractEditValue` | `LabelColumnTests` | 7 |

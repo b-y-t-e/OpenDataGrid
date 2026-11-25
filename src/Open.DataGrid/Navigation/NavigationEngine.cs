@@ -93,12 +93,12 @@ namespace Open.DataGrid.Navigation
                     Move(_visibleRows, 0);
                     e.Handled = true;
                     break;
-                case Key.Home when (e.KeyboardDevice.Modifiers & ModifierKeys.Control) != 0:
-                    SetPosition(0, CurrentColumnIndex);
+                case Key.Home:
+                    MoveHome((e.KeyboardDevice.Modifiers & ModifierKeys.Control) != 0);
                     e.Handled = true;
                     break;
-                case Key.End when (e.KeyboardDevice.Modifiers & ModifierKeys.Control) != 0:
-                    SetPosition(_totalRows - 1, CurrentColumnIndex);
+                case Key.End:
+                    MoveEnd((e.KeyboardDevice.Modifiers & ModifierKeys.Control) != 0);
                     e.Handled = true;
                     break;
                 case Key.Left when _mode == NavigationMode.Cell:
@@ -208,6 +208,32 @@ namespace Open.DataGrid.Navigation
                 ? Math.Max(0, Math.Min(_totalColumns - 1, CurrentColumnIndex + colDelta))
                 : CurrentColumnIndex;
             SetPosition(newRow, newCol);
+        }
+
+        /// <summary>
+        /// Home: Ctrl → first row (column kept); Cell mode → first column (row kept);
+        /// Row mode → first row.
+        /// </summary>
+        internal void MoveHome(bool ctrl)
+        {
+            if (_totalRows == 0) return;
+            if (ctrl || _mode != NavigationMode.Cell)
+                SetPosition(0, CurrentColumnIndex);
+            else
+                SetPosition(Math.Max(0, CurrentRowIndex), 0);
+        }
+
+        /// <summary>
+        /// End: Ctrl → last row (column kept); Cell mode → last column (row kept);
+        /// Row mode → last row.
+        /// </summary>
+        internal void MoveEnd(bool ctrl)
+        {
+            if (_totalRows == 0) return;
+            if (ctrl || _mode != NavigationMode.Cell)
+                SetPosition(_totalRows - 1, CurrentColumnIndex);
+            else
+                SetPosition(Math.Max(0, CurrentRowIndex), Math.Max(0, _totalColumns - 1));
         }
 
         private void MoveColumn(int delta)

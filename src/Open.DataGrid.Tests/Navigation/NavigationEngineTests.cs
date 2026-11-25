@@ -223,5 +223,119 @@ namespace Open.DataGrid.Tests.Navigation
             Assert.That(args.ColumnIndex, Is.EqualTo(7));
             Assert.That(args.TriggerKey,  Is.EqualTo(System.Windows.Input.Key.F2));
         }
+
+        // ── Home / End ────────────────────────────────────────────────────────
+
+        private NavigationEventArgs CaptureNavigation(System.Action action)
+        {
+            NavigationEventArgs result = null;
+            _engine.NavigationRequested += (_, a) => result = a;
+            action();
+            return result;
+        }
+
+        [Test]
+        public void MoveHome_CellMode_GoesToFirstColumnKeepingRow()
+        {
+            // Given
+            _engine.Initialize(NavigationMode.Cell, 100, 10, 20);
+            _engine.SetCurrentPosition(40, 6);
+
+            // When
+            var args = CaptureNavigation(() => _engine.MoveHome(ctrl: false));
+
+            // Then
+            Assert.That(args.RowIndex, Is.EqualTo(40));
+            Assert.That(args.ColumnIndex, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void MoveEnd_CellMode_GoesToLastColumnKeepingRow()
+        {
+            // Given
+            _engine.Initialize(NavigationMode.Cell, 100, 10, 20);
+            _engine.SetCurrentPosition(40, 2);
+
+            // When
+            var args = CaptureNavigation(() => _engine.MoveEnd(ctrl: false));
+
+            // Then
+            Assert.That(args.RowIndex, Is.EqualTo(40));
+            Assert.That(args.ColumnIndex, Is.EqualTo(9));
+        }
+
+        [Test]
+        public void MoveHome_RowMode_GoesToFirstRow()
+        {
+            // Given
+            _engine.Initialize(NavigationMode.Row, 100, 10, 20);
+            _engine.SetCurrentPosition(40, 0);
+
+            // When
+            var args = CaptureNavigation(() => _engine.MoveHome(ctrl: false));
+
+            // Then
+            Assert.That(args.RowIndex, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void MoveEnd_RowMode_GoesToLastRow()
+        {
+            // Given
+            _engine.Initialize(NavigationMode.Row, 100, 10, 20);
+            _engine.SetCurrentPosition(40, 0);
+
+            // When
+            var args = CaptureNavigation(() => _engine.MoveEnd(ctrl: false));
+
+            // Then
+            Assert.That(args.RowIndex, Is.EqualTo(99));
+        }
+
+        [Test]
+        public void MoveHomeEnd_CtrlInCellMode_ChangesRowKeepingColumn()
+        {
+            // Given
+            _engine.Initialize(NavigationMode.Cell, 100, 10, 20);
+            _engine.SetCurrentPosition(40, 6);
+
+            // When
+            var end = CaptureNavigation(() => _engine.MoveEnd(ctrl: true));
+            var home = CaptureNavigation(() => _engine.MoveHome(ctrl: true));
+
+            // Then
+            Assert.That(end.RowIndex, Is.EqualTo(99));
+            Assert.That(end.ColumnIndex, Is.EqualTo(6));
+            Assert.That(home.RowIndex, Is.EqualTo(0));
+            Assert.That(home.ColumnIndex, Is.EqualTo(6));
+        }
+
+        [Test]
+        public void MoveHome_AlreadyAtFirstColumn_DoesNotFire()
+        {
+            // Given
+            _engine.Initialize(NavigationMode.Cell, 100, 10, 20);
+            _engine.SetCurrentPosition(40, 0);
+
+            // When
+            var args = CaptureNavigation(() => _engine.MoveHome(ctrl: false));
+
+            // Then
+            Assert.That(args, Is.Null);
+        }
+
+        [Test]
+        public void MoveEnd_NoRows_DoesNothing()
+        {
+            // Given
+            _engine.Initialize(NavigationMode.Cell, 0, 10, 20);
+
+            // When
+            var args = CaptureNavigation(() => _engine.MoveEnd(ctrl: false));
+
+            // Then
+            Assert.That(args, Is.Null);
+            Assert.That(_engine.CurrentRowIndex, Is.EqualTo(-1));
+        }
     }
 }
