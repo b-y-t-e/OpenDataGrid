@@ -101,6 +101,8 @@ namespace Open.DataGrid.Columns
             return NoValue;
         }
 
+        public override object GetClearedValue() => Math.Max(Minimum, Math.Min(Maximum, 0m));
+
         protected override Freezable CreateInstanceCore() => new OpenDataGridDecimalColumn();
     }
 }

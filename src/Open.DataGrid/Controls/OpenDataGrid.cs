@@ -341,6 +341,14 @@ public static readonly DependencyProperty RowReadOnlyBindingPathProperty =
                 new PropertyMetadata(null));
 
         /// <summary>
+        /// When <c>true</c>, pressing Delete outside edit mode on a cell of a numeric column
+        /// (Integer/Decimal) that is not read-only resets its value to zero. Default: <c>false</c>.
+        /// </summary>
+        public static readonly DependencyProperty ClearNumericCellOnDeleteProperty =
+            DependencyProperty.Register(nameof(ClearNumericCellOnDelete), typeof(bool), typeof(OpenDataGrid),
+                new PropertyMetadata(false));
+
+        /// <summary>
         /// The list of checked rows, independent from <see cref="SelectedItem"/>.
         /// The VM typically provides an <c>ObservableCollection&lt;T&gt;</c>; the grid
         /// adds/removes items from it when the user toggles rows.
@@ -506,6 +514,8 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
         public string SelectedColumn { get => (string)GetValue(SelectedColumnProperty); set => SetValue(SelectedColumnProperty, value); }
         public bool RestoreDefaultColumnOnFocus { get => (bool)GetValue(RestoreDefaultColumnOnFocusProperty); set => SetValue(RestoreDefaultColumnOnFocusProperty, value); }
         public System.Windows.Input.ICommand EnterCommand { get => (System.Windows.Input.ICommand)GetValue(EnterCommandProperty); set => SetValue(EnterCommandProperty, value); }
+        /// <summary>When <c>true</c>, Delete outside edit mode zeroes a numeric column cell. Default: <c>false</c>.</summary>
+        public bool ClearNumericCellOnDelete { get => (bool)GetValue(ClearNumericCellOnDeleteProperty); set => SetValue(ClearNumericCellOnDeleteProperty, value); }
         public IList CheckedItems { get => (IList)GetValue(CheckedItemsProperty); set => SetValue(CheckedItemsProperty, value); }
         public Key ToggleCheckedKey { get => (Key)GetValue(ToggleCheckedKeyProperty); set => SetValue(ToggleCheckedKeyProperty, value); }
         public Brush CheckedRowForeground { get => (Brush)GetValue(CheckedRowForegroundProperty); set => SetValue(CheckedRowForegroundProperty, value); }

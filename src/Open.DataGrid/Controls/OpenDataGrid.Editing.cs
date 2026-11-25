@@ -100,6 +100,44 @@ namespace Open.DataGrid.Controls
             }
         }
 
+        /// <summary>
+        /// Zeroes the value of the currently focused cell if it belongs to an editable numeric column
+        /// (Integer/Decimal) and is not read-only (Grid/Column/Row cascade). Invoked by Delete
+        /// outside edit mode when <see cref="ClearNumericCellOnDelete"/> is <c>true</c>.
+        /// </summary>
+        internal bool TryClearFocusedNumericCell()
+        {
+            if (IsPlaceholderActive || IsReadOnly) return false;
+
+            var columns = GetVisibleColumnList();
+            int colIndex = FocusedColIndex;
+            if (colIndex < 0 || colIndex >= columns.Count) return false;
+
+            var numeric = columns[colIndex] as OpenDataGridNumericColumnBase;
+            if (numeric == null || numeric.IsReadOnly) return false;
+
+            var sortedIndices = _sortEngine.SortedIndices;
+            int sortedRowIndex = FocusedRowSortedIndex;
+            if (sortedIndices == null || sortedRowIndex < 0 || sortedRowIndex >= sortedIndices.Length) return false;
+
+            int dataIndex = sortedIndices[sortedRowIndex];
+            if (dataIndex < 0 || dataIndex >= (DataSource?.Count ?? 0)) return false;
+
+            var dataItem = DataSource[dataIndex];
+            if (_rowReadOnlyGetter?.Invoke(dataItem) == true) return false;
+
+            var setter = _propertySetters[colIndex];
+            if (setter == null) return false;
+
+            var cleared = numeric.GetClearedValue();
+            setter(dataItem, cleared);
+
+            // Refresh the visible cell directly — no WPF binding on the hot path.
+            var row = _rowEngine.FindRowByDataIndex(dataIndex) as OpenDataGridRow;
+            row?.GetCell(colIndex)?.UpdateValue(cleared);
+            return true;
+        }
+
         private void OnLiveEditValueChanged()
         {
             if (!LiveEdit || _editingCell == null) return;

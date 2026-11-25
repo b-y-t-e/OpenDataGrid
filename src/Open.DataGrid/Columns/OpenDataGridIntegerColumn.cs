@@ -41,6 +41,8 @@ namespace Open.DataGrid.Columns
             return NoValue;
         }
 
+        public override object GetClearedValue() => Math.Max(Minimum, Math.Min(Maximum, 0));
+
         protected override Freezable CreateInstanceCore() => new OpenDataGridIntegerColumn();
     }
 }

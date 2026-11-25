@@ -41,6 +41,13 @@ namespace Open.DataGrid.Controls
                 return;
             }
 
+            if (e.Key == Key.Delete && !_navEngine.IsEditing
+                && ClearNumericCellOnDelete && TryClearFocusedNumericCell())
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (!_navEngine.IsEditing
                 && e.Key == ToggleCheckedKey
                 && (CheckedItems != null || HasAnyBoundCheckColumn()))

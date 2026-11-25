@@ -62,6 +62,33 @@ namespace Open.DataGrid.Tests.Columns
             return _column.CanBeginEdit(key);
         }
 
+        // ── GetClearedValue ───────────────────────────────────────────────────
+
+        [Test]
+        public void GetClearedValue_WithinRange_ReturnsZeroInt()
+        {
+            // Given: A column whose range includes 0.
+            // When: The cleared value is requested.
+            var result = _column.GetClearedValue();
+
+            // Then: 0 is returned, typed as int (matching the property type).
+            Assert.That(result, Is.EqualTo(0));
+            Assert.That(result, Is.TypeOf<int>());
+        }
+
+        [Test]
+        public void GetClearedValue_MinimumAboveZero_ClampsToMinimum()
+        {
+            // Given: A column whose Minimum is above zero.
+            _column.Minimum = 10;
+
+            // When: The cleared value is requested.
+            var result = (int)_column.GetClearedValue();
+
+            // Then: 0 is clamped up to Minimum.
+            Assert.That(result, Is.EqualTo(10));
+        }
+
         // ── GetComparison ─────────────────────────────────────────────────────
 
         [Test]

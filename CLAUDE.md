@@ -467,6 +467,7 @@ Beyond the sections above, key grid DPs:
 | `SelectionForeground` | `Brush` (default `null`) | text color of selected cells; `null` = auto-contrast from `SelectionBrush` |
 | `CheckedItems` | `IList` | collection of checked rows (VM provides ObservableCollection); required for `ToggleChecked` to work |
 | `ToggleCheckedKey` | `Key` (default `Key.None`) | key to toggle checked state; `Key.None` = disabled |
+| `ClearNumericCellOnDelete` | `bool` (default `false`) | Delete outside edit mode zeroes a non-read-only Integer/Decimal cell (clamped to `Minimum`/`Maximum`) |
 | `CheckedRowForeground` / `CheckedRowBackground` / `CheckedRowFontWeight` | `Brush` / `Brush` / `FontWeight?` | visual style for rows in `_checkedSet` |
 | `HeaderFontFamily/Size/Weight` | — | header typography; `HeaderFontSize` is nullable (WPF default fallback) |
 | `CellFontFamily/Size/Weight` | — | cell typography; `CellFontSize`/`CellFontWeight` are nullable |

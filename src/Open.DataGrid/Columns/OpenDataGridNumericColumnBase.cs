@@ -138,5 +138,11 @@ namespace Open.DataGrid.Columns
 
         /// <summary>Returns a comparable representation of <paramref name="rawValue"/> for sorting.</summary>
         protected abstract IComparable GetSortValue(object rawValue);
+
+        /// <summary>
+        /// Returns the column's zero value (of the type matching <see cref="OpenDataGridColumn.BindingPath"/>),
+        /// clamped to <c>Minimum</c>/<c>Maximum</c>. Used when clearing a cell with the Delete key.
+        /// </summary>
+        public abstract object GetClearedValue();
     }
 }

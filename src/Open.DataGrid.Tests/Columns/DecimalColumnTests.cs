@@ -141,6 +141,33 @@ namespace Open.DataGrid.Tests.Columns
             Assert.That(result, Is.EqualTo(1000.50m));
         }
 
+        // ── GetClearedValue ───────────────────────────────────────────────────
+
+        [Test]
+        public void GetClearedValue_WithinRange_ReturnsZeroDecimal()
+        {
+            // Given: A column whose range includes 0 (Minimum = 0).
+            // When: The cleared value is requested.
+            var result = _column.GetClearedValue();
+
+            // Then: 0m is returned (typed as decimal, matching the property type).
+            Assert.That(result, Is.EqualTo(0m));
+            Assert.That(result, Is.TypeOf<decimal>());
+        }
+
+        [Test]
+        public void GetClearedValue_MinimumAboveZero_ClampsToMinimum()
+        {
+            // Given: A column whose Minimum is above zero.
+            _column.Minimum = 5m;
+
+            // When: The cleared value is requested.
+            var result = (decimal)_column.GetClearedValue();
+
+            // Then: 0 is clamped up to Minimum.
+            Assert.That(result, Is.EqualTo(5m));
+        }
+
         // ── GetComparison ─────────────────────────────────────────────────────
 
         [Test]
