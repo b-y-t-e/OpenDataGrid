@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Open.DataGrid.Accessors;
 using Open.DataGrid.Filtering;
@@ -127,6 +129,31 @@ namespace Open.DataGrid.Controls
         {
             get => (bool)GetValue(KeepFocusOnNavigationProperty);
             set => SetValue(KeepFocusOnNavigationProperty, value);
+        }
+
+        public static readonly DependencyProperty HorizontalArrowsNavigateGridControlsProperty =
+            DependencyProperty.Register(
+                nameof(HorizontalArrowsNavigateGridControls), typeof(bool), typeof(OpenDataGridTextFilter),
+                new PropertyMetadata(false));
+
+        /// <summary>
+        /// When true, pressing Left with the caret at the start, or Right with the caret at the end
+        /// (in both cases with no text selected), moves focus to the previous/next <b>grid control</b>
+        /// — an <see cref="OpenDataGrid"/>, <see cref="OpenDataGridTextFilter"/> or
+        /// <see cref="OpenDataGridComboFilter"/>. Ordering follows TabIndex (ties broken by tree order),
+        /// but every other control in the window is skipped, so the arrows never escape the grid's own
+        /// controls the way Tab would.
+        /// <para>
+        /// Takes precedence over <see cref="FocusGridOnConfirm"/>, whose Left/Right handling fires on the
+        /// very same caret-at-edge condition. Not gated by it: traversal is a property of this control,
+        /// not of the grid link. At either end of the set the key is swallowed rather than escaping.
+        /// </para>
+        /// Default is false.
+        /// </summary>
+        public bool HorizontalArrowsNavigateGridControls
+        {
+            get => (bool)GetValue(HorizontalArrowsNavigateGridControlsProperty);
+            set => SetValue(HorizontalArrowsNavigateGridControlsProperty, value);
         }
 
         public static readonly DependencyProperty EnterCommandProperty =
@@ -263,6 +290,15 @@ namespace Open.DataGrid.Controls
                 }
             }
 
+            // Grid-control traversal is independent of the grid link, so it runs before the
+            // FocusGridOnConfirm gate and wins over that path's Left/Right handling, which fires
+            // on the very same caret-at-edge condition.
+            if (HorizontalArrowsNavigateGridControls && TryMoveToAdjacentGridControl(e.Key))
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (!FocusGridOnConfirm) return;
 
             bool shouldFocus;
@@ -292,6 +328,98 @@ namespace Open.DataGrid.Controls
                 e.Handled = true;
             }
         }
+
+        /// <summary>
+        /// Moves focus to the adjacent grid control when a horizontal arrow is pressed at the matching
+        /// text edge with nothing selected. Returns false when the caret still has text to travel,
+        /// leaving the key to the caret.
+        /// </summary>
+        private bool TryMoveToAdjacentGridControl(Key key)
+        {
+            if (SelectionLength != 0) return false;
+
+            int step;
+            if (key == Key.Left && CaretIndex == 0)
+                step = -1;
+            else if (key == Key.Right && CaretIndex == (Text?.Length ?? 0))
+                step = 1;
+            else
+                return false;
+
+            var controls = CollectGridControlsInTabOrder();
+            int self = controls.IndexOf(this);
+
+            // Swallow the key regardless: at either end of the set (or when detached from a visual
+            // tree) the arrows must still not escape to unrelated controls, and the caret is already
+            // parked at the edge with nowhere to go.
+            if (self < 0) return true;
+
+            int target = self + step;
+            if (target >= 0 && target < controls.Count)
+                controls[target].Focus();
+
+            return true;
+        }
+
+        /// <summary>
+        /// Grid controls under the containing window, ordered the way WPF orders tab stops:
+        /// TabIndex ascending, ties broken by tree order. Unrelated controls are excluded — that
+        /// is what scopes the arrows to the grid's own controls.
+        /// </summary>
+        private List<FrameworkElement> CollectGridControlsInTabOrder()
+        {
+            var found = new List<FrameworkElement>();
+            CollectGridControls(FindTraversalRoot(), found);
+
+            // OrderBy is stable, so ThenBy on tree position mirrors WPF's tie-breaking rule.
+            return found
+                .Select((el, treeOrder) => new { el, treeOrder })
+                .OrderBy(x => KeyboardNavigation.GetTabIndex(x.el))
+                .ThenBy(x => x.treeOrder)
+                .Select(x => x.el)
+                .ToList();
+        }
+
+        private DependencyObject FindTraversalRoot()
+        {
+            DependencyObject root = Window.GetWindow(this);
+            if (root != null) return root;
+
+            // No window (e.g. hosted in a popup or a detached tree) — climb to the topmost visual.
+            DependencyObject current = this;
+            while (true)
+            {
+                var parent = VisualTreeHelper.GetParent(current);
+                if (parent == null) return current;
+                current = parent;
+            }
+        }
+
+        private static void CollectGridControls(DependencyObject node, List<FrameworkElement> acc)
+        {
+            int count = VisualTreeHelper.GetChildrenCount(node);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(node, i);
+
+                if (IsGridControl(child))
+                {
+                    // Never descend into a grid control: its rows, cells and filter-row editors
+                    // are internals, not traversal targets.
+                    if (child is FrameworkElement el && IsTraversable(el))
+                        acc.Add(el);
+                    continue;
+                }
+
+                CollectGridControls(child, acc);
+            }
+        }
+
+        private static bool IsGridControl(DependencyObject d)
+            => d is OpenDataGrid || d is OpenDataGridTextFilter || d is OpenDataGridComboFilter;
+
+        private static bool IsTraversable(FrameworkElement el)
+            => el.IsVisible && el.IsEnabled && el.Focusable;
 
         /// <summary>
         /// Keys that move the grid's row selection. Left/Right are excluded — they move the caret
