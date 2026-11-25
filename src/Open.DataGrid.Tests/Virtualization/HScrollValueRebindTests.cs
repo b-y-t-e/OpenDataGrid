@@ -58,7 +58,7 @@ namespace Open.DataGrid.Tests.Virtualization
             Func<object, Brush>[] brushAccessors = { null, null, null };
 
             var row = BuildRow(columns, widths, offsets, 0, 2);
-            row.Bind(0, data, accessors, brushAccessors, null, hOffset: 0, firstVisibleCol: 0, lastVisibleCol: 0, isSelected: false, isChecked: false);
+            row.Bind(0, data, accessors, brushAccessors, null, hOffset: 0, firstVisibleCol: 0, lastVisibleCol: 0, isSelected: false, isChecked: false, isAlternate: false);
 
             Assert.That(row.GetCell(0).CurrentValue, Is.EqualTo("A"), "Col 0 bound initially");
             Assert.That(row.GetCell(1).CurrentValue, Is.Null,         "Col 1 not yet bound");
@@ -116,7 +116,7 @@ namespace Open.DataGrid.Tests.Virtualization
             Func<object, Brush>[] brushAccessors = { null, null, null };
 
             var row = BuildRow(columns, widths, offsets, 0, 2);
-            row.Bind(0, data, accessors, brushAccessors, null, hOffset: 0, firstVisibleCol: 0, lastVisibleCol: 2, isSelected: false, isChecked: false);
+            row.Bind(0, data, accessors, brushAccessors, null, hOffset: 0, firstVisibleCol: 0, lastVisibleCol: 2, isSelected: false, isChecked: false, isAlternate: false);
 
             // When: Visibility changes to only column 1 and refresh runs with new accessors.
             row.UpdateColumnLayout(widths, offsets, hOffset: 100, firstVisibleCol: 1, lastVisibleCol: 1);

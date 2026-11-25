@@ -10,9 +10,10 @@ namespace Open.DataGrid.Tests.Virtualization
     /// Verifies that <see cref="RowEngineConfig.RowColorResolver"/> is invoked during Bind()
     /// and that <see cref="TestRowSlot.LastRowBrush"/> correctly reflects the returned brush.
     ///
-    /// The resolver signature is <c>Func&lt;int dataIndex, object item, Brush&gt;</c> — the engine
+    /// The resolver signature is <c>Func&lt;bool isAlternate, object item, Brush&gt;</c> — the engine
     /// is agnostic about internal priority logic (selector vs path vs alternate); all composition
-    /// happens in OpenDataGrid.BuildRowColorResolver().
+    /// happens in OpenDataGrid.BuildRowColorResolver(). The <c>isAlternate</c> flag is derived from
+    /// the visual position (logicalIndex), not the raw DataSource index.
     /// </summary>
     [TestFixture]
     public class RowBackgroundSelectorTests
@@ -24,7 +25,7 @@ namespace Open.DataGrid.Tests.Virtualization
         private static RowEngineConfig BuildConfig(
             IList dataSource,
             int[] sortedIndices,
-            System.Func<int, object, Brush> rowColorResolver)
+            System.Func<bool, object, Brush> rowColorResolver)
         {
             var layout  = new double[ColCount];
             var offsets = new double[ColCount];
@@ -66,7 +67,7 @@ namespace Open.DataGrid.Tests.Virtualization
         private static EngineResult CreateEngine(
             IList dataSource,
             int[] sortedIndices,
-            System.Func<int, object, Brush> rowColorResolver)
+            System.Func<bool, object, Brush> rowColorResolver)
         {
             var slots = new System.Collections.Generic.List<TestRowSlot>();
 
@@ -166,28 +167,39 @@ namespace Open.DataGrid.Tests.Virtualization
                     $"Slot DataIndex={slot.DataIndex} should have null brush when resolver always returns null.");
         }
 
-        // ─── 4. Resolver uses dataIndex (e.g. alternate logic) ──────────────────
+        // ─── 4. Alternate parity follows VISUAL position, not the data index ────
 
         [Test]
-        public void RowColorResolver_UsesDataIndex_AlternateRowsGetBrush()
+        public void RowColorResolver_AlternateParity_FollowsVisualPositionNotDataIndex()
         {
-            // Given: resolver returns Gray for alternate rows (dataIndex % 2 != 0).
+            // Given: a filtered/reordered view where sortedIndices maps visual position → data index.
+            //        Visual rows 0..4 map to data indices 1, 3, 5, 7, 9 (all ODD data indices).
+            //        Resolver marks alternate rows (isAlternate) Gray, others White.
             const int total = 10;
             var data    = BuildIntData(total);
-            var indices = IdentityIndices(total);
+            var indices = new[] { 1, 3, 5, 7, 9 };   // e.g. result of a filter keeping odd values
 
-            var slots = CreateEngine(data, indices, (dataIndex, _) => dataIndex % 2 != 0 ? Brushes.Gray : Brushes.White).Slots;
+            var slots = CreateEngine(data, indices, (isAlternate, _) => isAlternate ? Brushes.Gray : Brushes.White).Slots;
 
             // When: engine initializes and binds slots.
 
-            // Then: odd dataIndex slots → Gray, even dataIndex slots → White.
-            foreach (var slot in slots)
+            // Then: zebra striping alternates by VISUAL position. If parity had (incorrectly) used the
+            //       data index, every one of these all-odd rows would be Gray — a broken stripe pattern.
+            //       Iterate the known visual positions and look up the slot bound to each one, rather
+            //       than reverse-mapping via IndexOf (which would silently skip a mis-bound slot).
+            for (int logical = 0; logical < indices.Length; logical++)
             {
-                if (slot.DataIndex < 0) continue;
+                int dataIndex = indices[logical];
+                var slot = slots.Find(s => s.DataIndex == dataIndex);
+                Assert.That(slot, Is.Not.Null,
+                    $"Visual row {logical} (DataIndex={dataIndex}) should be bound to a slot.");
 
-                var expected = slot.DataIndex % 2 != 0 ? Brushes.Gray : Brushes.White;
+                bool expectAlternate = logical % 2 != 0;
+                var expected = expectAlternate ? Brushes.Gray : Brushes.White;
                 Assert.That(slot.LastRowBrush, Is.EqualTo(expected),
-                    $"Slot DataIndex={slot.DataIndex} should have {(slot.DataIndex % 2 != 0 ? "Gray" : "White")} brush.");
+                    $"Visual row {logical} (DataIndex={dataIndex}) should stripe by visual position.");
+                Assert.That(slot.IsAlternate, Is.EqualTo(expectAlternate),
+                    $"Visual row {logical} IsAlternate should follow visual position.");
             }
         }
 
@@ -201,7 +213,7 @@ namespace Open.DataGrid.Tests.Virtualization
             var data    = BuildIntData(total);
             var indices = IdentityIndices(total);
 
-            var engineResult = CreateEngine(data, indices, (dataIndex, _) => dataIndex == 8 ? Brushes.Blue : null);
+            var engineResult = CreateEngine(data, indices, (_, item) => (int)item == 8 ? Brushes.Blue : null);
             var engine = engineResult.Engine;
             var slots  = engineResult.Slots;
 

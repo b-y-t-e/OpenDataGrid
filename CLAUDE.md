@@ -273,7 +273,7 @@ Priority logic is centralized in `src/Open.DataGrid/Rendering/CellBackgroundReso
 | 5 | **Column.Background** (fallback) | when `BackgroundOverridesData == false` and data returned no brush |
 | 6 | **Row resolved background** | `rowColorResolver` — `AlternateRowBackground` / `AlternateRowShift` / `RowBackgroundSelector` / `RowBackgroundBindingPath` / `RowBackground` / White |
 
-**Alternate row modifier:** layers 3–5 on rows where `dataIndex % 2 != 0` are additionally shifted by `BrushShift.Apply(brush, AlternateRowShift)` when `AlternateRowShift > 0`. For `Column.Background` the result is cached in `Column.GetAlternateBackground(shift)` (zero allocations on the hot path). Layers 1, 2, and 6 are not shifted.
+**Alternate row modifier:** layers 3–5 on rows at an odd visual position (`logicalIndex % 2 != 0` — position after sort/filter, not the `DataSource` index) are additionally shifted by `BrushShift.Apply(brush, AlternateRowShift)` when `AlternateRowShift > 0`. For `Column.Background` the result is cached in `Column.GetAlternateBackground(shift)` (zero allocations on the hot path). Layers 1, 2, and 6 are not shifted.
 
 **Text color:** `CellForegroundResolver` (`src/Open.DataGrid/Rendering/CellForegroundResolver.cs`) — pure function with a hierarchy: selected cell → `SelectionForeground` (if set) ?? auto-contrast from background (via `BrushShift`), normal → `Column.Foreground` ?? `Grid.Foreground` ?? null (WPF default). Symmetric architecture to `CellBackgroundResolver`.
 

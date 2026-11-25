@@ -34,7 +34,7 @@ namespace Open.DataGrid.Controls
         // Cached row data item for edit operations
         public object DataItem { get; private set; }
 
-        private Func<int, object, Brush> _colorResolver;
+        private Func<bool, object, Brush> _colorResolver;
         private Brush _resolvedBackground;
         private Brush _defaultRowBackground;   // fallback when _resolvedBackground == null (respects theme)
         private Brush _selectionBrush;
@@ -124,7 +124,7 @@ if (_gridLinePen == null
             IReadOnlyList<OpenDataGridColumn> columns,
             double[] columnWidths,
             double[] columnOffsets,
-            Func<int, object, Brush> colorResolver,
+            Func<bool, object, Brush> colorResolver,
             Brush selectionBrush,
             double alternateRowShift = 0.0,
             Brush gridForeground = null,
@@ -163,7 +163,7 @@ if (_gridLinePen == null
         public void UpdateRowBrushes(
             Brush selectionBrush,
             Brush defaultRowBackground,
-            Func<int, object, Brush> colorResolver,
+            Func<bool, object, Brush> colorResolver,
             Brush gridForeground,
             Brush selectionForeground,
             double alternateRowShift)
@@ -176,7 +176,7 @@ if (_gridLinePen == null
 
             // Re-resolve background before updating cells so UpdateRowState gets the fresh value.
             if (DataIndex >= 0 && DataItem != null)
-                _resolvedBackground = _colorResolver?.Invoke(DataIndex, DataItem);
+                _resolvedBackground = _colorResolver?.Invoke(_isAlternateRow, DataItem);
             else
                 _resolvedBackground = null;
 
@@ -253,12 +253,13 @@ if (_gridLinePen == null
             object dataItem,
             Func<object, object>[]   propertyAccessors,
             Func<object, Brush>[]    cellBrushAccessors,
-            Func<int, object, Brush> rowColorResolver,
+            Func<bool, object, Brush> rowColorResolver,
             double hOffset,
             int firstVisibleCol,
             int lastVisibleCol,
             bool isSelected,
-            bool isChecked)
+            bool isChecked,
+            bool isAlternate)
         {
             IsPlaceholder = false;
             bool itemChanged = !ReferenceEquals(DataItem, dataItem);
@@ -278,9 +279,11 @@ if (_gridLinePen == null
             _firstVisibleCol = firstVisibleCol;
             _lastVisibleCol  = lastVisibleCol;
 
-            // Row background — single resolver call encapsulates all priority logic
-            _resolvedBackground = rowColorResolver?.Invoke(dataIndex, dataItem);
-            _isAlternateRow     = dataIndex % 2 != 0;
+            // Row background — single resolver call encapsulates all priority logic.
+            // Alternate-row parity is driven by the visual position (isAlternate), NOT the raw
+            // DataSource index, so zebra striping stays consistent under filtering / sorting.
+            _isAlternateRow     = isAlternate;
+            _resolvedBackground = rowColorResolver?.Invoke(isAlternate, dataItem);
             IsSelected          = isSelected;
             UpdateBackground(isSelected);
 
@@ -328,7 +331,7 @@ if (_gridLinePen == null
             // Null or empty name means "all properties changed"
             if (string.IsNullOrEmpty(propertyName))
             {
-                _resolvedBackground = _colorResolver?.Invoke(DataIndex, DataItem);
+                _resolvedBackground = _colorResolver?.Invoke(_isAlternateRow, DataItem);
                 UpdateBackground(IsSelected);
                 RefreshVisibleCellValues(_propertyAccessors, _cellBrushAccessors);
                 return;

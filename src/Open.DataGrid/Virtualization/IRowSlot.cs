@@ -29,11 +29,12 @@ namespace Open.DataGrid.Virtualization
         void Bind(int dataIndex, object dataItem,
                   Func<object, object>[]  propertyAccessors,
                   Func<object, Brush>[]   cellBrushAccessors,
-                  Func<int, object, Brush> rowColorResolver,
+                  Func<bool, object, Brush> rowColorResolver,
                   double hOffset,
                   int firstVisibleCol, int lastVisibleCol,
                   bool isSelected,
-                  bool isChecked);
+                  bool isChecked,
+                  bool isAlternate);
 
         void UpdateColumnLayout(double[] widths, double[] offsets,
                                 double hOffset,
@@ -79,7 +80,7 @@ namespace Open.DataGrid.Virtualization
         void UpdateRowBrushes(
             Brush selectionBrush,
             Brush defaultRowBackground,
-            Func<int, object, Brush> colorResolver,
+            Func<bool, object, Brush> colorResolver,
             Brush gridForeground,
             Brush selectionForeground,
             double alternateRowShift);

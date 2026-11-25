@@ -32,7 +32,7 @@ namespace Open.DataGrid.Rendering
         /// <summary>Whether this cell is the focused cell.</summary>
         public readonly bool IsCellFocused;
 
-        /// <summary>Whether this is an alternate row (dataIndex % 2 != 0).</summary>
+        /// <summary>Whether this is an alternate row (visual position, logicalIndex % 2 != 0).</summary>
         public readonly bool IsAlternateRow;
 
         /// <summary>Shift magnitude for alternate-row color adjustment (0 = disabled). From Grid.AlternateRowShift DP.</summary>

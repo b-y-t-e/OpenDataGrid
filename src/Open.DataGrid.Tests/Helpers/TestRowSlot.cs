@@ -21,6 +21,7 @@ namespace Open.DataGrid.Tests.Helpers
         public bool IsVisible { get; set; }
         public int PoolIndex { get; set; }
         public Brush LastRowBrush { get; private set; }
+        public bool IsAlternate { get; private set; }
 
         private int _firstVisibleCol = -1;
         private int _lastVisibleCol  = -1;
@@ -44,18 +45,20 @@ namespace Open.DataGrid.Tests.Helpers
             object dataItem,
             Func<object, object>[] propertyAccessors,
             Func<object, Brush>[]  cellBrushAccessors,
-            Func<int, object, Brush> rowColorResolver,
+            Func<bool, object, Brush> rowColorResolver,
             double hOffset,
             int firstVisibleCol,
             int lastVisibleCol,
             bool isSelected,
-            bool isChecked)
+            bool isChecked,
+            bool isAlternate)
         {
             DataIndex = dataIndex;
             DataItem  = dataItem;
+            IsAlternate = isAlternate;
             _firstVisibleCol = firstVisibleCol;
             _lastVisibleCol  = lastVisibleCol;
-            LastRowBrush = rowColorResolver?.Invoke(dataIndex, dataItem);
+            LastRowBrush = rowColorResolver?.Invoke(isAlternate, dataItem);
 
             for (int i = firstVisibleCol; i <= lastVisibleCol && i < _columnCount; i++)
                 _values[i] = propertyAccessors[i]?.Invoke(dataItem);
@@ -101,7 +104,7 @@ namespace Open.DataGrid.Tests.Helpers
         public void UpdateRowBrushes(
             Brush selectionBrush,
             Brush defaultRowBackground,
-            Func<int, object, Brush> colorResolver,
+            Func<bool, object, Brush> colorResolver,
             Brush gridForeground,
             Brush selectionForeground,
             double alternateRowShift) { }

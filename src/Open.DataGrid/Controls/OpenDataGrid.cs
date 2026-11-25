@@ -101,7 +101,7 @@ namespace Open.DataGrid.Controls
         private Action<object, object>[] _propertySetters;
         private Func<object, Brush>[] _cellBrushGetters;
         private Func<object, Brush>      _rowBrushGetter;
-        private Func<int, object, Brush> _rowColorResolver;
+        private Func<bool, object, Brush> _rowColorResolver;
 
         // CheckedItems state
         private readonly HashSet<object> _checkedSet = new HashSet<object>(ObjectReferenceEqualityComparer.Default);
@@ -1581,19 +1581,19 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
             {
                 // Static case: no per-row selector — precompute alternate once.
                 var staticAlt = explicitAlt ?? (shift > 0.0 ? BrushShift.Apply(rowBg, shift) : null);
-                _rowColorResolver = (dataIndex, _) =>
-                    dataIndex % 2 != 0 && staticAlt != null ? staticAlt : rowBg;
+                _rowColorResolver = (isAlternate, _) =>
+                    isAlternate && staticAlt != null ? staticAlt : rowBg;
             }
             else
             {
                 // Dynamic case: per-row selector may return different base colors.
                 // 1-entry cache avoids recreating SolidColorBrush when consecutive rows share the same base.
                 Brush lastBase = null, lastAlt = null;
-                _rowColorResolver = (dataIndex, item) =>
+                _rowColorResolver = (isAlternate, item) =>
                 {
                     var perRowBrush = selectorOrPath(item);        // null = row has no specific colour
                     var baseBrush   = perRowBrush ?? rowBg;
-                    if (dataIndex % 2 != 0)
+                    if (isAlternate)
                     {
                         // Apply alternate-row logic only to rows without a per-row colour.
                         // When a row has its own colour (selector returned non-null), preserve it

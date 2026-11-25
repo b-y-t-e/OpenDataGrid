@@ -28,7 +28,7 @@ namespace Open.DataGrid.Virtualization
         private int[] _sortedIndices;
         private Func<object, object>[] _propertyAccessors;
         private Func<object, Brush>[]  _cellBrushAccessors;
-        private Func<int, object, Brush> _rowColorResolver;
+        private Func<bool, object, Brush> _rowColorResolver;
         private Func<object, bool>     _rowReadOnlyAccessor;
         private Func<object, bool>     _isCheckedAccessor;
         private Brush                  _checkedRowForeground;
@@ -317,7 +317,7 @@ namespace Open.DataGrid.Virtualization
         public void UpdateRowBrushes(
             Brush selectionBrush,
             Brush defaultRowBackground,
-            Func<int, object, Brush> colorResolver,
+            Func<bool, object, Brush> colorResolver,
             Brush gridForeground,
             Brush selectionForeground,
             double alternateRowShift)
@@ -413,8 +413,12 @@ namespace Open.DataGrid.Virtualization
             bool   isSelected = (dataIndex == _selectedDataIndex);
             bool   isChecked  = _isCheckedAccessor?.Invoke(dataItem) ?? false;
 
+            // Zebra striping follows the visual position (logicalIndex), not the raw data index,
+            // so alternating colors stay consistent after filtering / sorting reorders the rows.
+            bool isAlternate = logicalIndex % 2 != 0;
+
             slot.Bind(dataIndex, dataItem, _propertyAccessors, _cellBrushAccessors,
-                      _rowColorResolver, _hOffset, _firstVisibleCol, _lastVisibleCol, isSelected, isChecked);
+                      _rowColorResolver, _hOffset, _firstVisibleCol, _lastVisibleCol, isSelected, isChecked, isAlternate);
 
             slot.SetCellFocus(
                 dataIndex == _focusedDataIndex ? _focusedColumnIndex : -1,

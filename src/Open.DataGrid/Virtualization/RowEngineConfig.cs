@@ -17,7 +17,7 @@ namespace Open.DataGrid.Virtualization
         public int[]                        SortedIndices       { get; set; }
         public Func<object, object>[]       PropertyAccessors   { get; set; }
         public Func<object, Brush>[]        CellBrushAccessors  { get; set; }
-        public Func<int, object, Brush>     RowColorResolver    { get; set; }
+        public Func<bool, object, Brush>    RowColorResolver    { get; set; }
         public Func<object, bool>           RowReadOnlyAccessor { get; set; }
         public double                       RowHeight           { get; set; }
         public double                       CanvasHeight        { get; set; }
