@@ -308,5 +308,69 @@ namespace Open.DataGrid.Tests.Sorting
             // Then: SortCompleted is fired.
             Assert.That(fired, Is.True);
         }
+
+        // ── Shared identity indices (memory) ──────────────────────────────────
+
+        [Test]
+        public void Initialize_SameRowCount_SharesIdentityArrayBetweenEngines()
+        {
+            // Given: Two engines initialized with the same row count (two grids over one source).
+            var other = new SortEngine();
+
+            // When: Both are in identity mode.
+            other.Initialize(_data.Count);
+
+            // Then: They share a single read-only identity array instead of allocating one each.
+            Assert.That(other.SortedIndices, Is.SameAs(_engine.SortedIndices));
+        }
+
+        [Test]
+        public void Sort_DoesNotMutateSharedIdentityArray()
+        {
+            // Given: A second engine sharing the identity array with the first.
+            var other = new SortEngine();
+            other.Initialize(_data.Count);
+            var shared = other.SortedIndices;
+
+            // When: The first engine sorts.
+            SortSync(_nameColumn);
+
+            // Then: The first engine got its own sorted array; the shared identity array is intact.
+            Assert.That(_engine.SortedIndices, Is.Not.SameAs(shared));
+            Assert.That(_engine.SortedIndices, Is.EqualTo(new[] { 1, 2, 0 }));
+            Assert.That(shared, Is.EqualTo(new[] { 0, 1, 2 }));
+            Assert.That(other.FindSortedPosition(0), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void FindSortedPosition_AfterSortThenClearSort_ReturnsIdentityAgain()
+        {
+            // Given: A sorted engine (Alice=1, Bob=2, Charlie=0).
+            SortSync(_nameColumn);
+            Assume.That(_engine.FindSortedPosition(0), Is.EqualTo(2));
+
+            // When: Sort is cleared (back to identity mode without a reverse map).
+            _engine.ClearSort();
+
+            // Then: Positions are the identity again and out-of-range stays -1.
+            Assert.That(_engine.FindSortedPosition(0), Is.EqualTo(0));
+            Assert.That(_engine.FindSortedPosition(2), Is.EqualTo(2));
+            Assert.That(_engine.FindSortedPosition(3), Is.EqualTo(-1));
+        }
+
+        [Test]
+        public void FindSortedPosition_FilteredThenIdentity_UsesCurrentMode()
+        {
+            // Given: A filtered engine (only data index 2 visible).
+            _engine.Initialize(new[] { 2 }, _data.Count);
+            Assume.That(_engine.FindSortedPosition(0), Is.EqualTo(-1));
+
+            // When: The filter is removed (identity re-initialization).
+            _engine.Initialize(_data.Count);
+
+            // Then: The stale filtered reverse map is no longer consulted.
+            Assert.That(_engine.FindSortedPosition(0), Is.EqualTo(0));
+            Assert.That(_engine.FindSortedPosition(2), Is.EqualTo(2));
+        }
     }
 }

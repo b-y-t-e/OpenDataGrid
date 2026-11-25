@@ -57,11 +57,11 @@ namespace Open.DataGrid.Sorting
 
             _totalRows    = totalRows;
             _maxDataIndex = totalRows;
-            var indices = new int[totalRows];
-            for (int i = 0; i < totalRows; i++)
-                indices[i] = i;
-            _sortedIndices = indices;
-            _dataToSorted  = (int[])indices.Clone(); // identity mapping: sorted position == data index
+            // Identity order (no sort, no filter): the array is shared read-only between engines with
+            // the same row count, and no reverse map is allocated — FindSortedPosition is the identity.
+            // Saves 8 bytes/row per grid (8 MB per grid at 1M rows).
+            _sortedIndices = IdentityIndexCache.Get(totalRows);
+            _dataToSorted  = null;
             _currentColumn = null;
             _currentDirection = SortDirection.None;
         }
@@ -252,9 +252,16 @@ namespace Open.DataGrid.Sorting
         /// <summary>Finds the visual (sorted) position of a given data index in O(1).</summary>
         public int FindSortedPosition(int dataIndex)
         {
+            // Read _dataToSorted before _sortedIndices: the background sort publishes _sortedIndices
+            // first, then _dataToSorted (volatile), so a non-null lookup is always the newest state.
             var lookup = _dataToSorted;
-            if (lookup == null || dataIndex < 0 || dataIndex >= lookup.Length) return -1;
-            return lookup[dataIndex];
+            if (lookup != null)
+                return dataIndex < 0 || dataIndex >= lookup.Length ? -1 : lookup[dataIndex];
+
+            // Identity mode (see Initialize(int)): sorted position == data index.
+            var indices = _sortedIndices;
+            if (indices == null || dataIndex < 0 || dataIndex >= indices.Length) return -1;
+            return dataIndex;
         }
     }
 }
