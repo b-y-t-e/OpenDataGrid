@@ -70,6 +70,7 @@ namespace Open.DataGrid.Controls
         private bool _suppressScrollEvents;
         private readonly GridLifecycleController _lifecycle = new GridLifecycleController();
         private Pen _gridLinePen;
+        private Pen _verticalGridLinePen;
 
         // Theme state
         // DPs that the theme engine wrote to — used to detect "user override" vs "theme value"
@@ -386,6 +387,10 @@ public static readonly DependencyProperty RowReadOnlyBindingPathProperty =
             DependencyProperty.Register(nameof(GridLinesBrush), typeof(Brush), typeof(OpenDataGrid),
                 new PropertyMetadata(DefaultGridLinesBrush, OnGridLinesChanged));
 
+        public static readonly DependencyProperty VerticalGridLinesBrushProperty =
+            DependencyProperty.Register(nameof(VerticalGridLinesBrush), typeof(Brush), typeof(OpenDataGrid),
+                new PropertyMetadata(null, OnGridLinesChanged));
+
         public static readonly DependencyProperty GridLinesVisibilityProperty =
             DependencyProperty.Register(nameof(GridLinesVisibility), typeof(GridLinesVisibility), typeof(OpenDataGrid),
                 new PropertyMetadata(GridLinesVisibility.Horizontal, OnGridLinesChanged));
@@ -507,6 +512,8 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
         public Brush CheckedRowBackground { get => (Brush)GetValue(CheckedRowBackgroundProperty); set => SetValue(CheckedRowBackgroundProperty, value); }
         public FontWeight? CheckedRowFontWeight { get => (FontWeight?)GetValue(CheckedRowFontWeightProperty); set => SetValue(CheckedRowFontWeightProperty, value); }
         public Brush GridLinesBrush { get => (Brush)GetValue(GridLinesBrushProperty); set => SetValue(GridLinesBrushProperty, value); }
+        /// <summary>Brush for vertical grid lines (column separators). <c>null</c> = use <see cref="GridLinesBrush"/>.</summary>
+        public Brush VerticalGridLinesBrush { get => (Brush)GetValue(VerticalGridLinesBrushProperty); set => SetValue(VerticalGridLinesBrushProperty, value); }
         public GridLinesVisibility GridLinesVisibility { get => (GridLinesVisibility)GetValue(GridLinesVisibilityProperty); set => SetValue(GridLinesVisibilityProperty, value); }
         /// <summary>Text shown in the loading overlay while filter/sort/rebuild operations are in progress. Default: "Loading..."</summary>
         public string LoadingMessage { get => (string)GetValue(LoadingMessageProperty); set => SetValue(LoadingMessageProperty, value); }
@@ -1144,18 +1151,20 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
         private static void OnGridLinesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             var grid = (OpenDataGrid)d;
-            grid._gridLinePen = grid.BuildGridLinePen();
+            grid._gridLinePen = grid.BuildGridLinePen(grid.GridLinesBrush ?? DefaultGridLinesBrush);
+            grid._verticalGridLinePen = grid.VerticalGridLinesBrush != null
+                ? grid.BuildGridLinePen(grid.VerticalGridLinesBrush)
+                : null;
             if (grid._lifecycle.CanHandleInput)
             {
-                grid._rowEngine.SetGridLinePen(grid._gridLinePen);
+                grid._rowEngine.SetGridLinePen(grid._gridLinePen, grid._verticalGridLinePen);
                 grid._rowEngine.SetGridLinesVisibility(grid.GridLinesVisibility);
             }
         }
 
-        private Pen BuildGridLinePen()
+        private Pen BuildGridLinePen(Brush brush)
         {
             if (GridLinesVisibility == GridLinesVisibility.None) return null;
-            var brush = GridLinesBrush ?? DefaultGridLinesBrush;
             var pen = new Pen(brush, 1.0);
             pen.Freeze();
             return pen;
@@ -1833,8 +1842,10 @@ public string RowReadOnlyBindingPath { get => (string)GetValue(RowReadOnlyBindin
                 CheckedRowFontWeight = CheckedRowFontWeight,
             });
 
-            if (_gridLinePen == null) _gridLinePen = BuildGridLinePen();
-            _rowEngine.SetGridLinePen(_gridLinePen);
+            if (_gridLinePen == null) _gridLinePen = BuildGridLinePen(GridLinesBrush ?? DefaultGridLinesBrush);
+            if (_verticalGridLinePen == null && VerticalGridLinesBrush != null)
+                _verticalGridLinePen = BuildGridLinePen(VerticalGridLinesBrush);
+            _rowEngine.SetGridLinePen(_gridLinePen, _verticalGridLinePen);
             _rowEngine.SetGridLinesVisibility(GridLinesVisibility);
         }
 

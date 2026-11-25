@@ -85,7 +85,7 @@ namespace Open.DataGrid.Tests.Helpers
         public void SetGridFocus(bool isGridFocused) { }
         public void UpdateDefaultCellFont(FontFamily fontFamily, double? fontSize, FontWeight? fontWeight) { }
         public void InvalidateCellFont(int colIndex) { }
-        public void SetGridLinePen(Pen pen) { }
+        public void SetGridLinePen(Pen pen, Pen verticalPen) { }
         public void SetGridLinesVisibility(GridLinesVisibility visibility) { }
         public int CheckedRowStyleCallCount { get; private set; }
         public Brush LastCheckedRowForeground { get; private set; }

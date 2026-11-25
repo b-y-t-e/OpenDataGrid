@@ -272,10 +272,10 @@ namespace Open.DataGrid.Virtualization
         }
 
         /// <summary>Propagates a changed grid line pen to all rows in the pool.</summary>
-        public void SetGridLinePen(Pen pen)
+        public void SetGridLinePen(Pen pen, Pen verticalPen)
         {
             for (int i = 0; i < _poolSize; i++)
-                _pool.GetRow(i).SetGridLinePen(pen);
+                _pool.GetRow(i).SetGridLinePen(pen, verticalPen);
         }
 
         /// <summary>Propagates changed grid line visibility to all rows in the pool.</summary>

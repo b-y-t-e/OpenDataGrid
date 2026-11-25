@@ -85,8 +85,9 @@ namespace Open.DataGrid.Virtualization
             Brush selectionForeground,
             double alternateRowShift);
 
-        /// <summary>Sets the pen used to draw grid lines. Pass <c>null</c> to hide grid lines.</summary>
-        void SetGridLinePen(Pen pen);
+        /// <summary>Sets the pens used to draw grid lines. Pass <c>null</c> as <paramref name="pen"/> to hide grid lines.
+        /// <paramref name="verticalPen"/> is used for column separators; pass <c>null</c> to reuse <paramref name="pen"/>.</summary>
+        void SetGridLinePen(Pen pen, Pen verticalPen);
 
         /// <summary>Sets which grid line directions are drawn.</summary>
         void SetGridLinesVisibility(GridLinesVisibility visibility);

@@ -58,6 +58,7 @@ namespace Open.DataGrid.Controls
         // Grid lines overlay — drawn on top of all cells via DrawingVisual child
         private readonly DrawingVisual _gridLinesVisual = new DrawingVisual();
         private Pen _gridLinePen;
+        private Pen _verticalGridLinePen;
         private GridLinesVisibility _gridLinesVisibility = GridLinesVisibility.Horizontal;
 
         // Cached accessors for INPC live-refresh
@@ -77,9 +78,10 @@ namespace Open.DataGrid.Controls
         protected override Visual GetVisualChild(int index)
             => index == Children.Count ? _gridLinesVisual : base.GetVisualChild(index);
 
-        public void SetGridLinePen(Pen pen)
+        public void SetGridLinePen(Pen pen, Pen verticalPen)
         {
             _gridLinePen = pen;
+            _verticalGridLinePen = verticalPen;
             InvalidateArrange();
         }
 
@@ -110,11 +112,12 @@ if (_gridLinePen == null
                 if (_gridLinesVisibility == GridLinesVisibility.All
                     || _gridLinesVisibility == GridLinesVisibility.Vertical)
                 {
+                    var vPen = _verticalGridLinePen ?? _gridLinePen;
                     for (int i = _firstVisibleCol; i <= _lastVisibleCol && i < _columnCount; i++)
                     {
                         double x = _columnOffsets[i] + _columnWidths[i] - _hOffset - 0.5;
                         if (x <= 0 || x >= w) continue;
-                        dc.DrawLine(_gridLinePen, new Point(x, 0), new Point(x, h));
+                        dc.DrawLine(vPen, new Point(x, 0), new Point(x, h));
                     }
                 }
             }

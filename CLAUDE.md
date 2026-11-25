@@ -463,6 +463,7 @@ Beyond the sections above, key grid DPs:
 | `RowHeight` | `double` | affects `visibleRowCount` — change requires `InitializeRowEngine()` |
 | `HeaderHeight` | `double` | header row height |
 | `ShowGridLines` / `GridLinesBrush` | `bool` / `Brush` | grid drawing via `SetGridLinePen` on rows |
+| `VerticalGridLinesBrush` | `Brush` (default `null`) | column separator color; `null` = reuse `GridLinesBrush` |
 | `SelectionForeground` | `Brush` (default `null`) | text color of selected cells; `null` = auto-contrast from `SelectionBrush` |
 | `CheckedItems` | `IList` | collection of checked rows (VM provides ObservableCollection); required for `ToggleChecked` to work |
 | `ToggleCheckedKey` | `Key` (default `Key.None`) | key to toggle checked state; `Key.None` = disabled |
