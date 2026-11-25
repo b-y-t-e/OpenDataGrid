@@ -107,6 +107,28 @@ namespace Open.DataGrid.Controls
             set => SetValue(FocusGridOnConfirmProperty, value);
         }
 
+        public static readonly DependencyProperty KeepFocusOnNavigationProperty =
+            DependencyProperty.Register(
+                nameof(KeepFocusOnNavigation), typeof(bool), typeof(OpenDataGridTextFilter),
+                new PropertyMetadata(false));
+
+        /// <summary>
+        /// When true, Up/Down/PageUp/PageDown drive the linked grid's row selection while keyboard focus
+        /// stays in this text box — the search-box-over-results-list pattern, where the user keeps typing
+        /// and the arrows move the selection remotely. Takes precedence over <see cref="FocusGridOnConfirm"/>
+        /// for those four keys, which never move focus while this is true.
+        /// <para>
+        /// Left/Right are deliberately excluded: they edit the text (caret movement). Enter is also excluded —
+        /// it confirms via <see cref="EnterCommand"/> or moves focus per <see cref="FocusGridOnConfirm"/>.
+        /// </para>
+        /// Default is false.
+        /// </summary>
+        public bool KeepFocusOnNavigation
+        {
+            get => (bool)GetValue(KeepFocusOnNavigationProperty);
+            set => SetValue(KeepFocusOnNavigationProperty, value);
+        }
+
         public static readonly DependencyProperty EnterCommandProperty =
             DependencyProperty.Register(
                 nameof(EnterCommand), typeof(ICommand), typeof(OpenDataGridTextFilter),
@@ -228,6 +250,19 @@ namespace Open.DataGrid.Controls
                 }
             }
 
+            // Keep-focus navigation wins over the focus-transfer path below: these keys drive the
+            // grid remotely and must never pull focus out of the text box.
+            if (KeepFocusOnNavigation && IsGridNavigationKey(e.Key))
+            {
+                var navGrid = Grid;
+                if (navGrid != null)
+                {
+                    ForwardKeyToGrid(navGrid, e);
+                    e.Handled = true; // the arrows belong to the grid now, not to the caret
+                    return;
+                }
+            }
+
             if (!FocusGridOnConfirm) return;
 
             bool shouldFocus;
@@ -256,6 +291,41 @@ namespace Open.DataGrid.Controls
                 Grid?.Focus();
                 e.Handled = true;
             }
+        }
+
+        /// <summary>
+        /// Keys that move the grid's row selection. Left/Right are excluded — they move the caret
+        /// within the filter text. Enter is excluded — it confirms rather than navigates.
+        /// </summary>
+        private static bool IsGridNavigationKey(Key key)
+        {
+            switch (key)
+            {
+                case Key.Up:
+                case Key.Down:
+                case Key.PageUp:
+                case Key.PageDown:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Re-raises the keystroke on the grid as PreviewKeyDown — the event the grid overrides
+        /// to drive its NavigationEngine. The original KeyboardDevice is reused so modifier checks
+        /// still see the real modifier state. The grid needs no keyboard focus: ApplyCellFocus
+        /// updates selection and rendering without it.
+        /// </summary>
+        private static void ForwardKeyToGrid(OpenDataGrid grid, KeyEventArgs e)
+        {
+            var source = PresentationSource.FromVisual(grid);
+            if (source == null) return; // grid not connected to a rendering surface — nothing to navigate
+
+            grid.RaiseEvent(new KeyEventArgs(e.KeyboardDevice, source, e.Timestamp, e.Key)
+            {
+                RoutedEvent = PreviewKeyDownEvent
+            });
         }
 
         protected override void OnTextChanged(TextChangedEventArgs e)
