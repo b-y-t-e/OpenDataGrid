@@ -162,8 +162,12 @@
                                         ClipToBounds="True"/>
                             </Border>
 
-                            <!-- Data canvas -->
+                            <!-- Data canvas.
+                                 MinHeight = one row: in an unconstrained-height host (StackPanel,
+                                 Auto row) the canvas would otherwise measure to 0 and the grid would
+                                 stay in WaitingForViewport forever (no selection, filters, rows). -->
                             <Canvas x:Name="PART_Canvas"
+                                    MinHeight="{TemplateBinding RowHeight}"
                                     Grid.Row="2" Grid.Column="0"
                                     ClipToBounds="True"
                                     Background="Transparent"/>
