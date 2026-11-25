@@ -304,6 +304,7 @@ Rendering helper classes:
 - **Row** — Up/Down/PageUp/PageDown/Home/End/Ctrl+Home/Ctrl+End
 - **Cell** — additionally Left/Right/Tab/Shift+Tab, F2 = enter edit mode
 - **Home/End** (no Ctrl) — Cell mode: first/last visible column (row kept); Row mode: first/last row. Ctrl+Home/End always = first/last row (column kept). In edit mode Home/End stay with the editor (caret).
+- **Ctrl+C / Ctrl+Shift+C** (outside edit mode, DP `AllowCopy`, default `true`) — Cell mode: the focused cell; Row mode: all visible columns of the focused row, tab-separated (pastes into separate Excel cells). Text = what the cell displays (`Column.GetClipboardText`, overridden per column type: numeric/date/time formats, combo display text, check/boolean = True/False). Shift adds a header line. Fields containing tab/newline/quote are quoted Excel-style. Public API `GetCopyText(includeHeaders)` / `CopyToClipboard(includeHeaders)`; a locked clipboard returns `false`. Tests replace the internal `ClipboardWriter` so they never touch the real clipboard. In edit mode Ctrl+C stays with the editor.
 
 Smart edit entry — `column.CanBeginEdit(key)` decides whether a key triggers editing:
 - Letters do **not** enter edit mode for `Decimal` / `Integer` fields
@@ -349,6 +350,7 @@ The `Open.DataGrid.Demo` project uses **GalaSoft MVVMLight** (`MvvmLightLibs 5.4
 | `OpenDataGrid.Scrolling.cs` | `OnVerticalScroll`, `OnHorizontalScroll`, `OnMouseWheel`, `OnCanvasSizeChanged`, `UpdateColumnRange` |
 | `OpenDataGrid.Navigation.cs` | Focus/keyboard handlers, `EnsureRowVisible`, `EnsureColumnVisible`, `ScrollToItem`, `SelectColumn` |
 | `OpenDataGrid.Editing.cs` | `TryBeginEdit`, `CommitEdit`, `CancelEdit`, `LiveEdit` |
+| `OpenDataGrid.Clipboard.cs` | Ctrl+C / Ctrl+Shift+C: `AllowCopy` DP, `GetCopyText`, `CopyToClipboard`, `TryHandleCopyKey(key, modifiers)` |
 | `GridLifecycleState.cs` | Lifecycle state enum: `NoTemplate`, `TemplateReady`, `WaitingForViewport`, `Initializing`, `Ready`, `Unloaded` |
 | `GridLifecycleController.cs` | State machine; guards `CanHandleInput`, `IsInitialized`, `IsUnloaded`, `NeedsViewport`; named transitions; DEBUG log |
 | `SelectionFocusSynchronizer.cs` | `OnCanvasMouseDown`, `SelectByDataIndex`, `ApplyCellFocus`, `InternalSelectionChange` guard, `PendingSelectedItem` |
@@ -557,6 +559,7 @@ The `Open.DataGrid.Tests` project (NUnit 3, STA) — **451 unit tests + 75 integ
 | Info rows — render, navigation, scroll, INPC, runtime DPs | `InfoRowGridTests` | 12 |
 | TextFilter `KeepFocusOnNavigation` | `TextFilterNavigationForwardTests` | 8 |
 | TextFilter `HorizontalArrowsNavigateGridControls` | `TextFilterTabOnArrowsTests` | 10 |
+| Ctrl+C / Ctrl+Shift+C copy text, quoting, AllowCopy, locked clipboard | `ClipboardCopyTests` | 11 |
 | DiacriticsHelper — PL/Unicode normalisation, edge cases | `DiacriticsHelperTests` | 22 |
 | CellForegroundResolver — highlight contrast, column/grid fallback | `CellForegroundResolverTests` | 7 |
 | Theme palette sanity, DP apply/revert, user override, System stub | `ThemeTests` | 15 |

@@ -103,6 +103,8 @@ namespace Open.DataGrid.Columns
                 tb.Text = GetDisplayText(value);
         }
 
+        public override string GetClipboardText(object value) => GetDisplayText(value);
+
         public override void ApplyEditValue(FrameworkElement element, object value)
         {
             if (element is ComboBox combo)

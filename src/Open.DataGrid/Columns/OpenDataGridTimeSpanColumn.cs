@@ -50,6 +50,8 @@ namespace Open.DataGrid.Columns
                 tb.Text = FormatValue(value);
         }
 
+        public override string GetClipboardText(object value) => FormatValue(value);
+
         public override void ApplyEditValue(FrameworkElement element, object value)
         {
             if (element is TextBox tb)

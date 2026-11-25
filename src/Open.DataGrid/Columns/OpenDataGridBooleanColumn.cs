@@ -56,6 +56,8 @@ namespace Open.DataGrid.Columns
             }
         }
 
+        public override string GetClipboardText(object value) => ToNullableBoolean(value)?.ToString() ?? string.Empty;
+
         public override void ApplyEditValue(FrameworkElement element, object value)
         {
             if (element is CheckBox checkBox)

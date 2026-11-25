@@ -314,6 +314,14 @@ namespace Open.DataGrid.Columns
         /// <summary>Sets the display element's visual representation from the raw value.</summary>
         public abstract void ApplyDisplayValue(FrameworkElement element, object value);
 
+        /// <summary>
+        /// Text copied to the clipboard (Ctrl+C) for a cell holding <paramref name="value"/> —
+        /// the same text the cell displays. A column without <see cref="BindingPath"/> receives
+        /// the whole data item and copies nothing unless it overrides this.
+        /// </summary>
+        public virtual string GetClipboardText(object value)
+            => string.IsNullOrEmpty(BindingPath) ? string.Empty : value?.ToString() ?? string.Empty;
+
         /// <summary>Sets the edit element's content from the raw value.</summary>
         public abstract void ApplyEditValue(FrameworkElement element, object value);
 

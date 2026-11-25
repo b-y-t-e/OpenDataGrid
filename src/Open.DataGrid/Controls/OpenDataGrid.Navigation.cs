@@ -35,6 +35,12 @@ namespace Open.DataGrid.Controls
             // Filter row editors handle their own navigation — don't intercept keys there.
             if (_filterRowPresenter?.IsKeyboardFocusWithin == true) return;
 
+            if (TryHandleCopyKey(e.Key, Keyboard.Modifiers))
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key == Key.Enter && !_navEngine.IsEditing && TryExecuteEnterCommand())
             {
                 e.Handled = true;

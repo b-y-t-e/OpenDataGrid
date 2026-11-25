@@ -80,6 +80,9 @@ namespace Open.DataGrid.Columns
                 cb.IsChecked = _owningGrid?.IsItemChecked(value) ?? false;
         }
 
+        public override string GetClipboardText(object value)
+            => (!string.IsNullOrEmpty(BindingPath) ? ToBool(value) : _owningGrid?.IsItemChecked(value) ?? false).ToString();
+
         internal static bool ToBool(object value)
         {
             if (value is bool b) return b;

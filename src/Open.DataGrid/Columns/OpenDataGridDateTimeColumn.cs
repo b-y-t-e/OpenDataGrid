@@ -79,6 +79,9 @@ namespace Open.DataGrid.Columns
                 tb.Text = value is DateTime dt ? dt.ToString(GetEffectiveFormat()) : value?.ToString() ?? string.Empty;
         }
 
+        public override string GetClipboardText(object value)
+            => value is DateTime dt ? dt.ToString(GetEffectiveFormat()) : value?.ToString() ?? string.Empty;
+
         public override void ApplyEditValue(FrameworkElement element, object value)
         {
             if (element is TextBox tb)
